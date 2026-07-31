@@ -4,5 +4,5 @@ pages_build_output_dir = "dist"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "lplpo-lambuya-db"
-database_id = "GANTI_DENGAN_ID_DATABASE_ANDA"
+database_name = "lplpo-lambuya"
+database_id = "157cb457-ee8c-4ffc-854f-b752dded539d"
