@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Upload, Plus, Trash2, Settings, FileSpreadsheet, Download, Loader2,
-  ClipboardList, Building2, CheckCircle2, AlertCircle, ChevronRight, Save,
+  ClipboardList, Building2, CheckCircle2, AlertCircle, ChevronRight, Save, Search,
 } from 'lucide-react';
 import * as api from './lib/api';
 import {
@@ -364,8 +364,9 @@ function CreatePeriodeModal({ master, isFirst, onCancel, onCreated, showToast })
 // ---------------- Periode Detail ----------------
 function PeriodeDetail({ periodeId, onBack, profile, showToast }) {
   const [detail, setDetail] = useState(null);
-  const [edits, setEdits] = useState({}); // obatId -> { penerimaan?, pemakaianManual? } sedang diedit
+  const [edits, setEdits] = useState({}); // obatId -> { stokAwal?, penerimaan?, pemakaianManual?, stokAkhirManual? }
   const [busy, setBusy] = useState(false);
+  const [search, setSearch] = useState('');
   const medisyFileRef = useRef(null);
 
   const load = async () => setDetail(await api.getPeriodeDetail(periodeId));
@@ -373,17 +374,18 @@ function PeriodeDetail({ periodeId, onBack, profile, showToast }) {
 
   const dirtyCount = Object.keys(edits).length;
 
-  const handleSavePenerimaan = async () => {
+  const setEdit = (obatId, patch) => setEdits(d => ({ ...d, [obatId]: { ...d[obatId], ...patch } }));
+
+  const handleSaveAll = async () => {
     setBusy(true);
     try {
-      const updates = Object.entries(edits).map(([obatId, e]) => {
-        const row = detail.rows.find(r => r.obatId === obatId);
-        return {
-          obatId,
-          penerimaan: num(e.penerimaan !== undefined ? e.penerimaan : row?.penerimaan),
-          pemakaianManual: e.pemakaianManual !== undefined ? num(e.pemakaianManual) : (row?.kodeObat ? undefined : row?.pemakaian),
-        };
-      });
+      const updates = Object.entries(edits).map(([obatId, e]) => ({
+        obatId,
+        stokAwal: e.stokAwal !== undefined ? num(e.stokAwal) : undefined,
+        penerimaan: e.penerimaan !== undefined ? num(e.penerimaan) : undefined,
+        pemakaianManual: e.pemakaianManual !== undefined ? num(e.pemakaianManual) : undefined,
+        stokAkhirManual: e.stokAkhirManual !== undefined ? num(e.stokAkhirManual) : undefined,
+      }));
       await api.saveItems(periodeId, updates);
       setEdits({});
       await load();
@@ -430,6 +432,11 @@ function PeriodeDetail({ periodeId, onBack, profile, showToast }) {
 
   if (!detail) return <div className="text-stone-400 text-sm">Memuat...</div>;
 
+  const q = search.trim().toLowerCase();
+  const visibleRows = q
+    ? detail.rows.filter(r => !r.isHeader && r.nama.toLowerCase().includes(q))
+    : detail.rows;
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -462,18 +469,29 @@ function PeriodeDetail({ periodeId, onBack, profile, showToast }) {
 
       <KunjunganResep detail={detail} onSave={saveKunjungan} />
 
+      <div className="relative mb-3">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Cari nama obat..."
+          className="w-full border border-stone-300 rounded px-9 py-2 text-sm"
+        />
+        {q && <p className="text-[11px] text-stone-400 mt-1">{visibleRows.length} obat ditemukan untuk "{search}"</p>}
+      </div>
+
       {dirtyCount > 0 && (
         <div className="sticky top-2 z-10 bg-amber-50 border border-amber-300 rounded-lg px-4 py-2.5 mb-3 flex items-center justify-between">
-          <p className="text-xs text-amber-800">{dirtyCount} baris Penerimaan diubah, belum disimpan.</p>
-          <button disabled={busy} onClick={handleSavePenerimaan} className="bg-amber-600 hover:bg-amber-700 text-white text-xs px-3 py-1.5 rounded flex items-center gap-1.5">
-            {busy && <Loader2 className="animate-spin" size={12} />} Simpan Penerimaan
+          <p className="text-xs text-amber-800">{dirtyCount} baris diubah, belum disimpan.</p>
+          <button disabled={busy} onClick={handleSaveAll} className="bg-amber-600 hover:bg-amber-700 text-white text-xs px-3 py-1.5 rounded flex items-center gap-1.5">
+            {busy && <Loader2 className="animate-spin" size={12} />} Simpan Perubahan
           </button>
         </div>
       )}
 
       <div className="bg-white border border-stone-200 rounded-lg overflow-hidden">
         <div className="px-3 py-2 bg-rose-50 border-b border-rose-100 text-[11px] text-rose-700">
-          * = obat tanpa Kode Obat valid di master (tidak bisa dicocokkan dengan file Medisy) — kolom Pemakaian untuk obat ini harus diisi manual.
+          * = obat tanpa Kode Obat valid di master (tidak bisa dicocokkan dengan file Medisy). Kolom Stok Awal, Pemakaian, dan Stok Akhir semuanya bisa diedit manual kapan saja — mengubah salah satu akan menghitung ulang kolom lain secara otomatis.
         </div>
         <table className="w-full text-xs">
           <thead className="bg-stone-100 text-stone-500">
@@ -490,7 +508,7 @@ function PeriodeDetail({ periodeId, onBack, profile, showToast }) {
             </tr>
           </thead>
           <tbody>
-            {detail.rows.map(r => r.isHeader ? (
+            {visibleRows.map(r => r.isHeader ? (
               <tr key={r.obatId} className="bg-stone-200">
                 <td colSpan={9} className="px-2 py-1.5 font-semibold text-stone-700">{r.nama}</td>
               </tr>
@@ -498,30 +516,38 @@ function PeriodeDetail({ periodeId, onBack, profile, showToast }) {
               <tr key={r.obatId} className={`border-t border-stone-100 hover:bg-stone-50 ${!r.kodeObat ? 'bg-rose-50/40' : ''}`}>
                 <td className="px-2 py-1.5 text-stone-700">
                   {r.nama}
-                  {!r.kodeObat && <span title="Kode obat tidak ditemukan di master — Pemakaian harus diisi manual" className="ml-1 text-rose-500 text-[10px] align-top">*</span>}
+                  {!r.kodeObat && <span title="Kode obat tidak ditemukan di master" className="ml-1 text-rose-500 text-[10px] align-top">*</span>}
                 </td>
                 <td className="px-2 py-1.5 text-stone-500">{r.satuan}</td>
-                <td className="px-2 py-1.5 text-right font-mono text-stone-500">{r.stokAwal}</td>
+                <td className="px-2 py-1 text-right">
+                  <input
+                    value={edits[r.obatId]?.stokAwal !== undefined ? edits[r.obatId].stokAwal : r.stokAwal}
+                    onChange={e => setEdit(r.obatId, { stokAwal: e.target.value })}
+                    className="w-20 border border-stone-200 rounded px-1.5 py-0.5 text-right font-mono"
+                  />
+                </td>
                 <td className="px-2 py-1 text-right">
                   <input
                     value={edits[r.obatId]?.penerimaan !== undefined ? edits[r.obatId].penerimaan : r.penerimaan}
-                    onChange={e => setEdits(d => ({ ...d, [r.obatId]: { ...d[r.obatId], penerimaan: e.target.value } }))}
+                    onChange={e => setEdit(r.obatId, { penerimaan: e.target.value })}
                     className="w-20 border border-stone-200 rounded px-1.5 py-0.5 text-right font-mono"
                   />
                 </td>
                 <td className="px-2 py-1.5 text-right font-mono text-stone-500">{r.persediaan}</td>
                 <td className="px-2 py-1 text-right">
-                  {r.kodeObat ? (
-                    <span className="font-mono text-stone-500">{r.pemakaian}</span>
-                  ) : (
-                    <input
-                      value={edits[r.obatId]?.pemakaianManual !== undefined ? edits[r.obatId].pemakaianManual : r.pemakaian}
-                      onChange={e => setEdits(d => ({ ...d, [r.obatId]: { ...d[r.obatId], pemakaianManual: e.target.value } }))}
-                      className="w-20 border border-rose-200 rounded px-1.5 py-0.5 text-right font-mono"
-                    />
-                  )}
+                  <input
+                    value={edits[r.obatId]?.pemakaianManual !== undefined ? edits[r.obatId].pemakaianManual : r.pemakaian}
+                    onChange={e => setEdit(r.obatId, { pemakaianManual: e.target.value })}
+                    className={`w-20 border rounded px-1.5 py-0.5 text-right font-mono ${!r.kodeObat ? 'border-rose-200' : 'border-stone-200'}`}
+                  />
                 </td>
-                <td className="px-2 py-1.5 text-right font-mono text-stone-500">{r.stokAkhir}</td>
+                <td className="px-2 py-1 text-right">
+                  <input
+                    value={edits[r.obatId]?.stokAkhirManual !== undefined ? edits[r.obatId].stokAkhirManual : r.stokAkhir}
+                    onChange={e => setEdit(r.obatId, { stokAkhirManual: e.target.value })}
+                    className="w-20 border border-stone-200 rounded px-1.5 py-0.5 text-right font-mono"
+                  />
+                </td>
                 <td className="px-2 py-1.5 text-right font-mono text-stone-500">{r.permintaan}</td>
                 <td className="px-2 py-1.5 text-right font-mono text-stone-500">{r.pemberian}</td>
               </tr>
