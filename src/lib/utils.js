@@ -93,6 +93,32 @@ export function parseStokAkhirFromLplpo(arrayBuffer) {
   return result;
 }
 
+// Menghitung ulang field turunan secara instan di browser (tanpa perlu simpan dulu).
+// Logikanya sama persis dengan perhitungan di server (functions/api/periode/[id]/items.js).
+export function computeRow({ stokAwal, penerimaan, stokAkhirMedisy, pemakaianManual, stokAkhirManual }) {
+  const persediaan = (Number(stokAwal) || 0) + (Number(penerimaan) || 0);
+
+  if (stokAkhirManual !== undefined && stokAkhirManual !== null && stokAkhirManual !== '') {
+    const stokAkhir = Number(stokAkhirManual) || 0;
+    const pemakaian = persediaan - stokAkhir;
+    const permintaan = (pemakaian * 1.2) - stokAkhir;
+    return { persediaan, pemakaian, stokAkhir, permintaan, pemberian: permintaan };
+  }
+  if (pemakaianManual !== undefined && pemakaianManual !== null && pemakaianManual !== '') {
+    const pemakaian = Number(pemakaianManual) || 0;
+    const stokAkhir = persediaan - pemakaian;
+    const permintaan = (pemakaian * 1.2) - stokAkhir;
+    return { persediaan, pemakaian, stokAkhir, permintaan, pemberian: permintaan };
+  }
+  if (stokAkhirMedisy !== undefined && stokAkhirMedisy !== null) {
+    const pemakaian = persediaan - stokAkhirMedisy;
+    const stokAkhir = stokAkhirMedisy;
+    const permintaan = (pemakaian * 1.2) - stokAkhir;
+    return { persediaan, pemakaian, stokAkhir, permintaan, pemberian: permintaan };
+  }
+  return { persediaan, pemakaian: 0, stokAkhir: 0, permintaan: 0, pemberian: 0 };
+}
+
 // ---- Generate file LPLPO resmi (.xlsx) dari template, diisi data periode berjalan ----
 export async function generateLplpoXlsx({ templateArrayBuffer, periode, rows, profile }) {
   const wb = new ExcelJS.Workbook();

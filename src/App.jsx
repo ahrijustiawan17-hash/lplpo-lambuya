@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import * as api from './lib/api';
 import {
-  BULAN, parseMasterFile, parseMedisyStokFile, parseStokAkhirFromLplpo, generateLplpoXlsx,
+  BULAN, parseMasterFile, parseMedisyStokFile, parseStokAkhirFromLplpo, generateLplpoXlsx, computeRow,
 } from './lib/utils';
 
 function num(v) {
@@ -512,7 +512,16 @@ function PeriodeDetail({ periodeId, onBack, profile, showToast }) {
               <tr key={r.obatId} className="bg-stone-200">
                 <td colSpan={9} className="px-2 py-1.5 font-semibold text-stone-700">{r.nama}</td>
               </tr>
-            ) : (
+            ) : (() => {
+              const e = edits[r.obatId] || {};
+              const live = computeRow({
+                stokAwal: e.stokAwal !== undefined ? e.stokAwal : r.stokAwal,
+                penerimaan: e.penerimaan !== undefined ? e.penerimaan : r.penerimaan,
+                stokAkhirMedisy: r.stokAkhirMedisy,
+                pemakaianManual: e.pemakaianManual,
+                stokAkhirManual: e.stokAkhirManual,
+              });
+              return (
               <tr key={r.obatId} className={`border-t border-stone-100 hover:bg-stone-50 ${!r.kodeObat ? 'bg-rose-50/40' : ''}`}>
                 <td className="px-2 py-1.5 text-stone-700">
                   {r.nama}
@@ -521,37 +530,38 @@ function PeriodeDetail({ periodeId, onBack, profile, showToast }) {
                 <td className="px-2 py-1.5 text-stone-500">{r.satuan}</td>
                 <td className="px-2 py-1 text-right">
                   <input
-                    value={edits[r.obatId]?.stokAwal !== undefined ? edits[r.obatId].stokAwal : r.stokAwal}
-                    onChange={e => setEdit(r.obatId, { stokAwal: e.target.value })}
+                    value={e.stokAwal !== undefined ? e.stokAwal : r.stokAwal}
+                    onChange={ev => setEdit(r.obatId, { stokAwal: ev.target.value })}
                     className="w-20 border border-stone-200 rounded px-1.5 py-0.5 text-right font-mono"
                   />
                 </td>
                 <td className="px-2 py-1 text-right">
                   <input
-                    value={edits[r.obatId]?.penerimaan !== undefined ? edits[r.obatId].penerimaan : r.penerimaan}
-                    onChange={e => setEdit(r.obatId, { penerimaan: e.target.value })}
+                    value={e.penerimaan !== undefined ? e.penerimaan : r.penerimaan}
+                    onChange={ev => setEdit(r.obatId, { penerimaan: ev.target.value })}
                     className="w-20 border border-stone-200 rounded px-1.5 py-0.5 text-right font-mono"
                   />
                 </td>
-                <td className="px-2 py-1.5 text-right font-mono text-stone-500">{r.persediaan}</td>
+                <td className="px-2 py-1.5 text-right font-mono text-stone-500">{live.persediaan}</td>
                 <td className="px-2 py-1 text-right">
                   <input
-                    value={edits[r.obatId]?.pemakaianManual !== undefined ? edits[r.obatId].pemakaianManual : r.pemakaian}
-                    onChange={e => setEdit(r.obatId, { pemakaianManual: e.target.value })}
+                    value={e.pemakaianManual !== undefined ? e.pemakaianManual : r.pemakaian}
+                    onChange={ev => setEdits(d => ({ ...d, [r.obatId]: { ...d[r.obatId], pemakaianManual: ev.target.value, stokAkhirManual: undefined } }))}
                     className={`w-20 border rounded px-1.5 py-0.5 text-right font-mono ${!r.kodeObat ? 'border-rose-200' : 'border-stone-200'}`}
                   />
                 </td>
                 <td className="px-2 py-1 text-right">
                   <input
-                    value={edits[r.obatId]?.stokAkhirManual !== undefined ? edits[r.obatId].stokAkhirManual : r.stokAkhir}
-                    onChange={e => setEdit(r.obatId, { stokAkhirManual: e.target.value })}
+                    value={e.stokAkhirManual !== undefined ? e.stokAkhirManual : r.stokAkhir}
+                    onChange={ev => setEdits(d => ({ ...d, [r.obatId]: { ...d[r.obatId], stokAkhirManual: ev.target.value, pemakaianManual: undefined } }))}
                     className="w-20 border border-stone-200 rounded px-1.5 py-0.5 text-right font-mono"
                   />
                 </td>
-                <td className="px-2 py-1.5 text-right font-mono text-stone-500">{r.permintaan}</td>
-                <td className="px-2 py-1.5 text-right font-mono text-stone-500">{r.pemberian}</td>
+                <td className="px-2 py-1.5 text-right font-mono text-stone-500">{live.permintaan}</td>
+                <td className="px-2 py-1.5 text-right font-mono text-stone-500">{live.pemberian}</td>
               </tr>
-            ))}
+              );
+            })())}
           </tbody>
         </table>
       </div>
