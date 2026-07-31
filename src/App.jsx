@@ -545,14 +545,14 @@ function PeriodeDetail({ periodeId, onBack, profile, showToast }) {
                 <td className="px-2 py-1.5 text-right font-mono text-stone-500">{live.persediaan}</td>
                 <td className="px-2 py-1 text-right">
                   <input
-                    value={e.pemakaianManual !== undefined ? e.pemakaianManual : r.pemakaian}
+                    value={e.pemakaianManual !== undefined ? e.pemakaianManual : live.pemakaian}
                     onChange={ev => setEdits(d => ({ ...d, [r.obatId]: { ...d[r.obatId], pemakaianManual: ev.target.value, stokAkhirManual: undefined } }))}
                     className={`w-20 border rounded px-1.5 py-0.5 text-right font-mono ${!r.kodeObat ? 'border-rose-200' : 'border-stone-200'}`}
                   />
                 </td>
                 <td className="px-2 py-1 text-right">
                   <input
-                    value={e.stokAkhirManual !== undefined ? e.stokAkhirManual : r.stokAkhir}
+                    value={e.stokAkhirManual !== undefined ? e.stokAkhirManual : live.stokAkhir}
                     onChange={ev => setEdits(d => ({ ...d, [r.obatId]: { ...d[r.obatId], stokAkhirManual: ev.target.value, pemakaianManual: undefined } }))}
                     className="w-20 border border-stone-200 rounded px-1.5 py-0.5 text-right font-mono"
                   />
