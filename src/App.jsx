@@ -379,12 +379,13 @@ function PeriodeDetail({ periodeId, onBack, profile, showToast }) {
   const handleSaveAll = async () => {
     setBusy(true);
     try {
+      const asNumOrUndef = (v) => (v === undefined || v === '') ? undefined : num(v);
       const updates = Object.entries(edits).map(([obatId, e]) => ({
         obatId,
-        stokAwal: e.stokAwal !== undefined ? num(e.stokAwal) : undefined,
-        penerimaan: e.penerimaan !== undefined ? num(e.penerimaan) : undefined,
-        pemakaianManual: e.pemakaianManual !== undefined ? num(e.pemakaianManual) : undefined,
-        stokAkhirManual: e.stokAkhirManual !== undefined ? num(e.stokAkhirManual) : undefined,
+        stokAwal: asNumOrUndef(e.stokAwal),
+        penerimaan: asNumOrUndef(e.penerimaan),
+        pemakaianManual: asNumOrUndef(e.pemakaianManual),
+        stokAkhirManual: asNumOrUndef(e.stokAkhirManual),
       }));
       await api.saveItems(periodeId, updates);
       setEdits({});
@@ -520,6 +521,7 @@ function PeriodeDetail({ periodeId, onBack, profile, showToast }) {
                 stokAkhirMedisy: r.stokAkhirMedisy,
                 pemakaianManual: e.pemakaianManual,
                 stokAkhirManual: e.stokAkhirManual,
+                existingPemakaian: r.pemakaian,
               });
               return (
               <tr key={r.obatId} className={`border-t border-stone-100 hover:bg-stone-50 ${!r.kodeObat ? 'bg-rose-50/40' : ''}`}>

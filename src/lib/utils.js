@@ -95,7 +95,7 @@ export function parseStokAkhirFromLplpo(arrayBuffer) {
 
 // Menghitung ulang field turunan secara instan di browser (tanpa perlu simpan dulu).
 // Logikanya sama persis dengan perhitungan di server (functions/api/periode/[id]/items.js).
-export function computeRow({ stokAwal, penerimaan, stokAkhirMedisy, pemakaianManual, stokAkhirManual }) {
+export function computeRow({ stokAwal, penerimaan, stokAkhirMedisy, pemakaianManual, stokAkhirManual, existingPemakaian }) {
   const persediaan = (Number(stokAwal) || 0) + (Number(penerimaan) || 0);
 
   if (stokAkhirManual !== undefined && stokAkhirManual !== null && stokAkhirManual !== '') {
@@ -116,7 +116,10 @@ export function computeRow({ stokAwal, penerimaan, stokAkhirMedisy, pemakaianMan
     const permintaan = (pemakaian * 1.2) - stokAkhir;
     return { persediaan, pemakaian, stokAkhir, permintaan, pemberian: permintaan };
   }
-  return { persediaan, pemakaian: 0, stokAkhir: 0, permintaan: 0, pemberian: 0 };
+  const pemakaian = Number(existingPemakaian) || 0;
+  const stokAkhir = persediaan - pemakaian;
+  const permintaan = (pemakaian * 1.2) - stokAkhir;
+  return { persediaan, pemakaian, stokAkhir, permintaan, pemberian: permintaan };
 }
 
 // ---- Generate file LPLPO resmi (.xlsx) dari template, diisi data periode berjalan ----

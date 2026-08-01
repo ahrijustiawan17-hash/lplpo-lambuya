@@ -1,7 +1,9 @@
 // Menghitung ulang field turunan berdasarkan kombinasi input yang dikirim.
 // Prioritas kalau stokAkhir DAN pemakaian dua-duanya diedit manual di baris yang sama:
 // stokAkhir yang dipakai sebagai acuan (pemakaian dihitung ulang darinya).
-function compute({ stokAwal, penerimaan, stokAkhirMedisy, pemakaianManual, stokAkhirManual }) {
+// existingPemakaian = nilai Pemakaian yang SUDAH tersimpan sebelumnya -> dipakai sebagai fallback
+// supaya Stok Awal/Penerimaan yang diedit sendirian tidak menghapus Pemakaian yang sudah diisi manual.
+function compute({ stokAwal, penerimaan, stokAkhirMedisy, pemakaianManual, stokAkhirManual, existingPemakaian }) {
   const persediaan = (stokAwal || 0) + (penerimaan || 0);
 
   if (stokAkhirManual !== null && stokAkhirManual !== undefined) {
@@ -22,7 +24,12 @@ function compute({ stokAwal, penerimaan, stokAkhirMedisy, pemakaianManual, stokA
     const permintaan = (pemakaian * 1.2) - stokAkhir;
     return { persediaan, pemakaian, stokAkhir, permintaan, pemberian: permintaan };
   }
-  return { persediaan, pemakaian: 0, stokAkhir: 0, permintaan: 0, pemberian: 0 };
+  // Tidak ada input baru untuk Pemakaian/Stok Akhir -> pertahankan Pemakaian yang sudah tersimpan,
+  // hitung ulang Stok Akhir/Permintaan mengikuti Persediaan yang baru.
+  const pemakaian = existingPemakaian || 0;
+  const stokAkhir = persediaan - pemakaian;
+  const permintaan = (pemakaian * 1.2) - stokAkhir;
+  return { persediaan, pemakaian, stokAkhir, permintaan, pemberian: permintaan };
 }
 
 // Body: [{ obatId, stokAwal, penerimaan, pemakaianManual, stokAkhirManual, keterangan }]
@@ -48,6 +55,7 @@ export async function onRequestPost({ env, params, request }) {
       stokAkhirMedisy: row.stok_akhir_medisy,
       pemakaianManual: u.pemakaianManual,
       stokAkhirManual: u.stokAkhirManual,
+      existingPemakaian: row.pemakaian,
     });
 
     batch.push(env.DB.prepare(
