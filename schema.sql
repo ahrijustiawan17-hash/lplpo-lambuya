@@ -57,3 +57,12 @@ CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT
 );
+
+-- Data tambahan per periode untuk laporan bulanan lainnya (Prekursor, Indikator Peresepan, PIO, dst)
+-- report_key contoh: 'prekursor', 'indikator_peresepan', 'pio'
+CREATE TABLE IF NOT EXISTS periode_extra (
+  periode_id TEXT NOT NULL,
+  report_key TEXT NOT NULL,
+  data TEXT,
+  PRIMARY KEY (periode_id, report_key)
+);
