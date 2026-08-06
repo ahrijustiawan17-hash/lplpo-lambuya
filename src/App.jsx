@@ -7,6 +7,10 @@ import * as api from './lib/api';
 import {
   BULAN, parseMasterFile, parseMedisyStokFile, parseStokAkhirFromLplpo, generateLplpoXlsx, computeRow,
 } from './lib/utils';
+import {
+  export20Besar, exportHartra, exportNapza, exportPrekursor, exportPenyalahgunaanNapza, exportPio,
+  generateIndikatorPeresepan, exportIndikatorPeresepan, downloadPirt, PREKURSOR_ITEMS,
+} from './lib/otherReports';
 
 function num(v) {
   const n = Number(v);
@@ -247,14 +251,31 @@ function PeriodeList({ master, periodeList, onOpen, onRefresh, showToast }) {
       ) : (
         <div className="grid gap-2">
           {periodeList.map(p => (
-            <button key={p.id} onClick={() => onOpen(p.id)}
-              className="bg-white border border-stone-200 rounded-lg p-4 flex items-center justify-between hover:border-emerald-300 text-left">
-              <div>
+            <div key={p.id}
+              className="bg-white border border-stone-200 rounded-lg p-4 flex items-center justify-between hover:border-emerald-300">
+              <button onClick={() => onOpen(p.id)} className="text-left flex-1">
                 <p className="font-medium text-stone-800">Pelaporan {p.bulanPelaporan} {p.tahunPelaporan}</p>
                 <p className="text-xs text-stone-500">Permintaan {p.bulanPermintaan} {p.tahunPermintaan} · {p.status === 'selesai' ? 'Selesai' : 'Draft'}</p>
+              </button>
+              <div className="flex items-center gap-3 shrink-0">
+                <button
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    if (!confirm(`Hapus periode "${p.bulanPelaporan} ${p.tahunPelaporan}"? Semua data di dalamnya (Penerimaan, Pemakaian, hasil upload Medisy) akan ikut terhapus dan tidak bisa dikembalikan.`)) return;
+                    await api.deletePeriode(p.id);
+                    await onRefresh();
+                    showToast('Periode dihapus.');
+                  }}
+                  className="text-rose-500 hover:text-rose-700 p-1.5"
+                  title="Hapus periode"
+                >
+                  <Trash2 size={15} />
+                </button>
+                <button onClick={() => onOpen(p.id)}>
+                  <ChevronRight size={16} className="text-stone-400" />
+                </button>
               </div>
-              <ChevronRight size={16} className="text-stone-400" />
-            </button>
+            </div>
           ))}
         </div>
       )}
@@ -567,6 +588,191 @@ function PeriodeDetail({ periodeId, onBack, profile, showToast }) {
           </tbody>
         </table>
       </div>
+
+      <LaporanLainnya detail={detail} showToast={showToast} />
+    </div>
+  );
+}
+
+function LaporanLainnya({ detail, showToast }) {
+  const [prekursor, setPrekursor] = useState(null);
+  const [pio, setPio] = useState({ rawatInap: '', konseling: '', informasiObat: '' });
+  const [indikator, setIndikator] = useState({ jumlahResep: 51, targetMin: 90, targetMax: 100, generated: null, seed: null });
+  const [busy, setBusy] = useState('');
+
+  useEffect(() => {
+    (async () => {
+      const p = await api.getExtra(detail.id, 'prekursor');
+      setPrekursor(p || PREKURSOR_ITEMS.map(nama => ({ nama, stokAwal: 0, penerimaan: 0, pemakaian: 0 })));
+      const pioData = await api.getExtra(detail.id, 'pio');
+      if (pioData) setPio(pioData);
+      else setPio({ rawatInap: 20 + Math.floor(Math.random() * 31), konseling: '', informasiObat: '' });
+      const ind = await api.getExtra(detail.id, 'indikator');
+      if (ind) setIndikator(ind);
+    })();
+  }, [detail.id]);
+
+  const savePrekursor = async (items) => {
+    setPrekursor(items);
+    await api.saveExtra(detail.id, 'prekursor', items);
+  };
+  const savePio = async (data) => {
+    setPio(data);
+    await api.saveExtra(detail.id, 'pio', data);
+  };
+  const generateAndSaveIndikator = async () => {
+    const seed = Math.floor(Math.random() * 1e9);
+    const generated = generateIndikatorPeresepan({
+      jumlahResep: num(indikator.jumlahResep) || 51, targetMin: num(indikator.targetMin), targetMax: num(indikator.targetMax), seed,
+    });
+    const data = { ...indikator, seed, generated };
+    setIndikator(data);
+    await api.saveExtra(detail.id, 'indikator', data);
+    return data;
+  };
+
+  const run = async (key, fn) => {
+    setBusy(key);
+    try { await fn(); } catch (e) { showToast('Gagal export: ' + e.message, 'error'); } finally { setBusy(''); }
+  };
+
+  if (!prekursor) return null;
+
+  return (
+    <div className="mt-8">
+      <h3 className="font-serif text-lg text-stone-800 mb-3">Laporan Bulanan Lainnya</h3>
+      <div className="grid md:grid-cols-2 gap-4">
+
+        <ReportCard title="20 Besar Penggunaan Obat" desc="Otomatis dari kolom Pemakaian bulan ini, diambil 20 tertinggi.">
+          <button disabled={busy} onClick={() => run('20besar', () => export20Besar({ periode: detail, rows: detail.rows }))}
+            className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs px-3 py-1.5 rounded flex items-center gap-1.5">
+            {busy === '20besar' ? <Loader2 className="animate-spin" size={12} /> : <Download size={12} />} Export
+          </button>
+        </ReportCard>
+
+        <ReportCard title="Indikator Peresepan" desc="Data diacak otomatis, hasil akhir % obat generik ada di rentang target.">
+          <div className="flex flex-wrap gap-2 items-center mb-2 text-xs">
+            <label>Jumlah resep</label>
+            <input value={indikator.jumlahResep} onChange={e => setIndikator(d => ({ ...d, jumlahResep: e.target.value }))} className="w-14 border border-stone-200 rounded px-1.5 py-0.5" />
+            <label>Target %</label>
+            <input value={indikator.targetMin} onChange={e => setIndikator(d => ({ ...d, targetMin: e.target.value }))} className="w-12 border border-stone-200 rounded px-1.5 py-0.5" />
+            <span>-</span>
+            <input value={indikator.targetMax} onChange={e => setIndikator(d => ({ ...d, targetMax: e.target.value }))} className="w-12 border border-stone-200 rounded px-1.5 py-0.5" />
+          </div>
+          {indikator.generated && <p className="text-[11px] text-stone-400 mb-2">Hasil terakhir: {(indikator.generated.totalPersen * 100).toFixed(2)}% obat generik ({indikator.generated.rows.length} resep)</p>}
+          <div className="flex gap-2">
+            <button disabled={busy} onClick={() => run('indikator-gen', generateAndSaveIndikator)}
+              className="border border-emerald-300 text-emerald-700 hover:bg-emerald-50 text-xs px-3 py-1.5 rounded">
+              Acak Ulang
+            </button>
+            <button disabled={busy || !indikator.generated} onClick={() => run('indikator-export', async () => {
+              const data = indikator.generated ? indikator : await generateAndSaveIndikator();
+              await exportIndikatorPeresepan({ periode: detail, generated: data.generated });
+            })} className="bg-emerald-700 hover:bg-emerald-800 disabled:opacity-40 text-white text-xs px-3 py-1.5 rounded flex items-center gap-1.5">
+              {busy === 'indikator-export' ? <Loader2 className="animate-spin" size={12} /> : <Download size={12} />} Export
+            </button>
+          </div>
+        </ReportCard>
+
+        <ReportCard title="HARTRA" desc="Data tetap sama tiap bulan, hanya tanggal tanda tangan yang berubah otomatis.">
+          <button disabled={busy} onClick={() => run('hartra', () => exportHartra({ periode: detail }))}
+            className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs px-3 py-1.5 rounded flex items-center gap-1.5">
+            {busy === 'hartra' ? <Loader2 className="animate-spin" size={12} /> : <Download size={12} />} Export
+          </button>
+        </ReportCard>
+
+        <ReportCard title="NAPZA" desc="Data tetap sama tiap bulan, hanya bulan/tahun & tanggal tanda tangan yang berubah.">
+          <button disabled={busy} onClick={() => run('napza', () => exportNapza({ periode: detail }))}
+            className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs px-3 py-1.5 rounded flex items-center gap-1.5">
+            {busy === 'napza' ? <Loader2 className="animate-spin" size={12} /> : <Download size={12} />} Export
+          </button>
+        </ReportCard>
+
+        <ReportCard title="Penggunaan Prekursor Farmasi" desc="Isi Stok Awal/Penerimaan/Pemakaian 11 item prekursor bulan ini.">
+          <div className="max-h-40 overflow-y-auto mb-2 border border-stone-100 rounded">
+            <table className="w-full text-[11px]">
+              <thead className="bg-stone-50 text-stone-400">
+                <tr><th className="text-left px-1.5 py-1">Nama</th><th className="px-1 py-1">Awal</th><th className="px-1 py-1">Terima</th><th className="px-1 py-1">Pakai</th></tr>
+              </thead>
+              <tbody>
+                {prekursor.map((it, i) => (
+                  <tr key={it.nama} className="border-t border-stone-100">
+                    <td className="px-1.5 py-0.5">{it.nama}</td>
+                    {['stokAwal', 'penerimaan', 'pemakaian'].map(f => (
+                      <td key={f} className="px-1 py-0.5">
+                        <input value={it[f]} onChange={e => {
+                          const next = prekursor.map((p, j) => j === i ? { ...p, [f]: e.target.value } : p);
+                          setPrekursor(next);
+                        }} className="w-12 border border-stone-200 rounded px-1 text-right" />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex gap-2">
+            <button disabled={busy} onClick={() => run('prekursor-save', () => savePrekursor(prekursor))}
+              className="border border-stone-300 text-stone-600 hover:bg-stone-50 text-xs px-3 py-1.5 rounded">Simpan</button>
+            <button disabled={busy} onClick={() => run('prekursor-export', async () => {
+              await savePrekursor(prekursor);
+              const normalized = prekursor.map(it => ({ ...it, stokAwal: num(it.stokAwal), penerimaan: num(it.penerimaan), pemakaian: num(it.pemakaian) }));
+              await exportPrekursor({ periode: detail, items: normalized });
+            })} className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs px-3 py-1.5 rounded flex items-center gap-1.5">
+              {busy === 'prekursor-export' ? <Loader2 className="animate-spin" size={12} /> : <Download size={12} />} Export
+            </button>
+          </div>
+        </ReportCard>
+
+        <ReportCard title="Penyalahgunaan NAPZA" desc="Data NIHIL setiap bulan (belum pernah ada kasus), hanya bulan & tanggal yang berubah.">
+          <button disabled={busy} onClick={() => run('penyalahgunaan', () => exportPenyalahgunaanNapza({ periode: detail }))}
+            className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs px-3 py-1.5 rounded flex items-center gap-1.5">
+            {busy === 'penyalahgunaan' ? <Loader2 className="animate-spin" size={12} /> : <Download size={12} />} Export
+          </button>
+        </ReportCard>
+
+        <ReportCard title="PIO" desc="Rawat Jalan otomatis dari total Kunjungan Resep di atas. Rawat Inap, Konseling, Informasi Obat diisi manual.">
+          <div className="flex flex-wrap gap-2 items-center mb-2 text-xs">
+            <label>Rawat Inap</label>
+            <input value={pio.rawatInap} onChange={e => setPio(d => ({ ...d, rawatInap: e.target.value }))} className="w-14 border border-stone-200 rounded px-1.5 py-0.5" />
+            <label>Konseling</label>
+            <input value={pio.konseling} onChange={e => setPio(d => ({ ...d, konseling: e.target.value }))} className="w-14 border border-stone-200 rounded px-1.5 py-0.5" />
+            <label>Info Obat</label>
+            <input value={pio.informasiObat} onChange={e => setPio(d => ({ ...d, informasiObat: e.target.value }))} className="w-14 border border-stone-200 rounded px-1.5 py-0.5" />
+          </div>
+          <div className="flex gap-2">
+            <button disabled={busy} onClick={() => run('pio-save', () => savePio(pio))}
+              className="border border-stone-300 text-stone-600 hover:bg-stone-50 text-xs px-3 py-1.5 rounded">Simpan</button>
+            <button disabled={busy} onClick={() => run('pio-export', async () => {
+              await savePio(pio);
+              await exportPio({ periode: detail, rawatInap: num(pio.rawatInap), konseling: num(pio.konseling), informasiObat: num(pio.informasiObat) });
+            })} className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs px-3 py-1.5 rounded flex items-center gap-1.5">
+              {busy === 'pio-export' ? <Loader2 className="animate-spin" size={12} /> : <Download size={12} />} Export
+            </button>
+          </div>
+        </ReportCard>
+
+        <ReportCard title="PIRT" desc="File tetap, tidak pernah berubah setiap bulan.">
+          <button onClick={downloadPirt} className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs px-3 py-1.5 rounded flex items-center gap-1.5">
+            <Download size={12} /> Download PIRT
+          </button>
+        </ReportCard>
+
+        <ReportCard title="POR (Penggunaan Obat Rasional)" desc="Menunggu file data resep dari Medisy — belum tersedia.">
+          <p className="text-xs text-stone-400 italic">Kirim file export resep Diare/ISPA dari Medisy untuk mengaktifkan laporan ini.</p>
+        </ReportCard>
+
+      </div>
+    </div>
+  );
+}
+
+function ReportCard({ title, desc, children }) {
+  return (
+    <div className="bg-white border border-stone-200 rounded-lg p-4">
+      <p className="font-medium text-stone-800 text-sm mb-1">{title}</p>
+      <p className="text-xs text-stone-500 mb-3">{desc}</p>
+      {children}
     </div>
   );
 }
