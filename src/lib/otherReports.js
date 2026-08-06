@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs';
+import * as XLSX from 'xlsx';
 import { BULAN } from './utils';
 
 async function loadTemplate(path) {
@@ -176,7 +177,165 @@ export async function exportIndikatorPeresepan({ periode, generated }) {
   download(await toBlob(wb), `Indikator_Peresepan_${periode.bulanPelaporan}_${periode.tahunPelaporan}.xlsx`);
 }
 
-// ---------------- 8. PIRT (statis total, tidak pernah berubah) ----------------
+// ---------------- 9. POR (Penggunaan Obat Rasional) ----------------
+const ANTIBIOTIK_KEYWORDS = [
+  'amoxicillin', 'amoxsilin', 'amoksisilin', 'amoksilin', 'amoxilin',
+  'ciprofloxacin', 'siprofloksasin',
+  'cefadroxil', 'cefadroksil', 'cefixim', 'cefiksim', 'ceftriaxone', 'seftriakson',
+  'cotrimoxazole', 'cotrimoxazol', 'kotrimoksazol', 'sultrinmix', 'sulfametoksazol', 'trimetoprim',
+  'metronidazole', 'metronidazol',
+  'ampicillin', 'ampisilin',
+  'eritromisin', 'erythromycin',
+  'doksisiklin', 'doxycycline',
+  'tetrasiklin', 'tetracycline',
+  'co-amoxiclav', 'amoxiclav', 'coamoxiclav',
+  'klindamisin', 'clindamycin',
+  'azithromycin', 'azitromisin',
+  'gentamicin', 'gentamisin',
+  'kloramfenikol', 'chloramphenicol', 'tiamfenikol',
+  'levofloxacin', 'levofloksasin',
+];
+function isAntibiotik(namaObat) {
+  const n = (namaObat || '').toLowerCase();
+  return ANTIBIOTIK_KEYWORDS.some(k => n.includes(k));
+}
+
+function excelSerialToDateStr(v) {
+  if (typeof v === 'number') {
+    const d = new Date(Math.round((v - 25569) * 86400 * 1000));
+    return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+  return v || '';
+}
+
+// Parser file ISPA dari Medisy (formatnya sudah hampir identik dengan template resmi)
+export function parseIspaMedisy(arrayBuffer) {
+  const wb = XLSX.read(arrayBuffer, { type: 'array' });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
+
+  const patients = [];
+  let current = null;
+  for (let i = 9; i < rows.length; i++) { // data mulai baris ke-10 (index 9)
+    const row = rows[i] || [];
+    const [tanggal, no, nama, umur, jmlItem, antibiotik, jmlLembar, letter, namaObat, , , , , , generik] = row;
+    if (tanggal !== null && tanggal !== undefined) {
+      current = {
+        tanggal: excelSerialToDateStr(tanggal), no, nama, umur, jmlItem: Number(jmlItem) || 0,
+        antibiotik: (antibiotik || '').toString().toUpperCase().includes('YA') ? 'YA' : 'TIDAK',
+        jmlLembar: Number(jmlLembar) || 0, obat: [],
+      };
+      patients.push(current);
+    }
+    if (current && namaObat) {
+      const jmlGenerik = row[10]; // kolom K: Jumlah Generik
+      current.obat.push({ letter: letter || String.fromCharCode(97 + current.obat.length), nama: namaObat, generik: jmlGenerik });
+    }
+  }
+  return patients;
+}
+
+// Parser file DIARE dari Medisy (data mentah per kunjungan, obat digabung dalam 1 sel)
+export function parseDiareMedisy(arrayBuffer) {
+  const wb = XLSX.read(arrayBuffer, { type: 'array' });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
+
+  const patients = [];
+  for (let i = 1; i < rows.length; i++) { // header di baris 1, data mulai baris 2 (index1)
+    const row = rows[i] || [];
+    const [no, tanggal, nama, nik, jk, tglLahir, umur, alamat, desa, namaObatRaw] = row;
+    if (!nama) continue;
+    // Format: (KDxxx\n-Nama Obat),(KDxxx\n-Nama Obat 2),...
+    const parts = String(namaObatRaw || '').split(/\),\(/).map(s => s.replace(/^\(|\)$/g, ''));
+    const obatList = parts.map(p => {
+      const afterDash = p.split(/\n-|-/).slice(1).join('-').trim();
+      return afterDash || p.trim();
+    }).filter(Boolean);
+    const jmlItem = obatList.length;
+    const antibiotik = obatList.some(isAntibiotik) ? 'YA' : 'TIDAK';
+    patients.push({
+      tanggal: typeof tanggal === 'string' ? tanggal : excelSerialToDateStr(tanggal),
+      no, nama, umur: typeof umur === 'string' ? umur : `${umur} th`,
+      jmlItem, antibiotik, jmlLembar: jmlItem,
+      obat: obatList.map((n, idx) => ({ letter: String.fromCharCode(97 + idx), nama: n })),
+    });
+  }
+  return patients;
+}
+
+function fillPasienSheet(ws, patients, startRow) {
+  let r = startRow;
+  patients.forEach((p, idx) => {
+    const firstRow = r;
+    ws.getCell(`A${firstRow}`).value = p.tanggal;
+    ws.getCell(`B${firstRow}`).value = idx + 1;
+    ws.getCell(`C${firstRow}`).value = p.nama;
+    ws.getCell(`D${firstRow}`).value = p.umur;
+    ws.getCell(`E${firstRow}`).value = p.jmlItem;
+    ws.getCell(`F${firstRow}`).value = p.antibiotik;
+    ws.getCell(`G${firstRow}`).value = p.jmlLembar;
+    if (p.obat.length === 0) {
+      r += 1;
+    } else {
+      p.obat.forEach(o => {
+        ws.getCell(`H${r}`).value = o.letter;
+        ws.getCell(`I${r}`).value = o.nama;
+        r += 1;
+      });
+    }
+  });
+  return r;
+}
+
+export async function exportPor({ periode, ispaPatients, diarePatients, tenaga }) {
+  const wb = await loadTemplate('/tpl_por.xlsx');
+  const wsDiare = wb.getWorksheet('Diare');
+  const wsIspa = wb.getWorksheet('Ispa');
+  const wsLap = wb.getWorksheet('Lap. Indikator');
+
+  const bulanCap = periode.bulanPelaporan.charAt(0) + periode.bulanPelaporan.slice(1).toLowerCase();
+
+  wsDiare.getCell('J4').value = `: ${periode.bulanPelaporan}`;
+  wsDiare.getCell('J5').value = `: ${periode.tahunPelaporan}`;
+  wsIspa.getCell('J4').value = `: ${periode.bulanPelaporan}`;
+  wsIspa.getCell('J5').value = `: ${periode.tahunPelaporan}`;
+
+  fillPasienSheet(wsDiare, diarePatients, 10);
+  fillPasienSheet(wsIspa, ispaPatients, 10);
+
+  // Hitung indikator rekap
+  const totalResepIspa = ispaPatients.length;
+  const antibiotikIspa = ispaPatients.filter(p => p.antibiotik === 'YA').length;
+  const totalItemIspa = ispaPatients.reduce((s, p) => s + p.jmlItem, 0);
+  const totalLembarIspa = ispaPatients.reduce((s, p) => s + p.jmlLembar, 0);
+
+  const totalResepDiare = diarePatients.length;
+  const antibiotikDiare = diarePatients.filter(p => p.antibiotik === 'YA').length;
+  const totalItemDiare = diarePatients.reduce((s, p) => s + p.jmlItem, 0);
+  const totalLembarDiare = diarePatients.reduce((s, p) => s + p.jmlLembar, 0);
+
+  const persenAbIspa = totalResepIspa ? (antibiotikIspa / totalResepIspa) * 100 : 0;
+  const persenAbDiare = totalResepDiare ? (antibiotikDiare / totalResepDiare) * 100 : 0;
+  const rerataIspa = totalLembarIspa ? totalItemIspa / totalLembarIspa : 0;
+  const rerataDiare = totalLembarDiare ? totalItemDiare / totalLembarDiare : 0;
+  const rataRata = (rerataIspa + rerataDiare) / 2;
+
+  wsLap.getCell('C11').value = `: ${tenaga.apoteker} orang`;
+  wsLap.getCell('C12').value = `: ${tenaga.ttk} orang`;
+  wsLap.getCell('C13').value = `: ${tenaga.farmasi} orang`;
+  wsLap.getCell('C14').value = `: ${tenaga.dokter} orang`;
+  wsLap.getCell('A25').value = '1.';
+  wsLap.getCell('B25').value = Number(persenAbIspa.toFixed(2));
+  wsLap.getCell('C25').value = Number(persenAbDiare.toFixed(2));
+  wsLap.getCell('D25').value = Number(rerataIspa.toFixed(2));
+  wsLap.getCell('E25').value = Number(rerataDiare.toFixed(2));
+  wsLap.getCell('F25').value = Number(rataRata.toFixed(2));
+  wsLap.getCell('E27').value = `Lambuya, ${tanggalPeriode(periode).toUpperCase()}`;
+
+  download(await toBlob(wb), `POR_${periode.bulanPelaporan}_${periode.tahunPelaporan}.xlsx`);
+  return { totalResepIspa, antibiotikIspa, persenAbIspa, totalResepDiare, antibiotikDiare, persenAbDiare, rerataIspa, rerataDiare };
+}
 export function downloadPirt() {
   const a = document.createElement('a');
   a.href = '/PIRT.docx';

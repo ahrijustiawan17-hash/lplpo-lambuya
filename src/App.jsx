@@ -10,6 +10,7 @@ import {
 import {
   export20Besar, exportHartra, exportNapza, exportPrekursor, exportPenyalahgunaanNapza, exportPio,
   generateIndikatorPeresepan, exportIndikatorPeresepan, downloadPirt, PREKURSOR_ITEMS,
+  parseIspaMedisy, parseDiareMedisy, exportPor,
 } from './lib/otherReports';
 
 function num(v) {
@@ -770,12 +771,73 @@ function LaporanLainnya({ detail, showToast }) {
           </button>
         </ReportCard>
 
-        <ReportCard title="POR (Penggunaan Obat Rasional)" desc="Menunggu file data resep dari Medisy — belum tersedia.">
-          <p className="text-xs text-stone-400 italic">Kirim file export resep Diare/ISPA dari Medisy untuk mengaktifkan laporan ini.</p>
-        </ReportCard>
+        <PorCard detail={detail} showToast={showToast} />
 
       </div>
     </div>
+  );
+}
+
+function PorCard({ detail, showToast }) {
+  const [tenaga, setTenaga] = useState({ apoteker: 1, ttk: 1, farmasi: 0, dokter: 1 });
+  const [ispaFile, setIspaFile] = useState(null);
+  const [diareFile, setDiareFile] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [hasil, setHasil] = useState(null);
+
+  const handleExport = async () => {
+    if (!ispaFile || !diareFile) {
+      showToast('Upload dulu file ISPA dan DIARE dari Medisy.', 'error');
+      return;
+    }
+    setBusy(true);
+    try {
+      const ispaBuf = await ispaFile.arrayBuffer();
+      const diareBuf = await diareFile.arrayBuffer();
+      const ispaPatients = parseIspaMedisy(ispaBuf);
+      const diarePatients = parseDiareMedisy(diareBuf);
+      const t = { apoteker: num(tenaga.apoteker), ttk: num(tenaga.ttk), farmasi: num(tenaga.farmasi), dokter: num(tenaga.dokter) };
+      const res = await exportPor({ periode: detail, ispaPatients, diarePatients, tenaga: t });
+      setHasil(res);
+      showToast('File POR berhasil dibuat.');
+    } catch (e) {
+      showToast('Gagal membuat POR: ' + e.message, 'error');
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <ReportCard title="POR (Penggunaan Obat Rasional)" desc="Upload file export ISPA & DIARE dari Medisy untuk periode ini.">
+      <div className="grid grid-cols-2 gap-2 mb-2 text-xs">
+        <div>
+          <label className="block text-stone-500 mb-1">File ISPA (.xls/.xlsx)</label>
+          <input type="file" accept=".xls,.xlsx" onChange={e => setIspaFile(e.target.files[0])} className="text-xs w-full" />
+        </div>
+        <div>
+          <label className="block text-stone-500 mb-1">File DIARE (.xls/.xlsx)</label>
+          <input type="file" accept=".xls,.xlsx" onChange={e => setDiareFile(e.target.files[0])} className="text-xs w-full" />
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-2 items-center mb-2 text-xs">
+        <label>Apoteker</label>
+        <input value={tenaga.apoteker} onChange={e => setTenaga(d => ({ ...d, apoteker: e.target.value }))} className="w-10 border border-stone-200 rounded px-1 py-0.5" />
+        <label>TTK</label>
+        <input value={tenaga.ttk} onChange={e => setTenaga(d => ({ ...d, ttk: e.target.value }))} className="w-10 border border-stone-200 rounded px-1 py-0.5" />
+        <label>Farmasi</label>
+        <input value={tenaga.farmasi} onChange={e => setTenaga(d => ({ ...d, farmasi: e.target.value }))} className="w-10 border border-stone-200 rounded px-1 py-0.5" />
+        <label>Dokter</label>
+        <input value={tenaga.dokter} onChange={e => setTenaga(d => ({ ...d, dokter: e.target.value }))} className="w-10 border border-stone-200 rounded px-1 py-0.5" />
+      </div>
+      {hasil && (
+        <p className="text-[11px] text-stone-400 mb-2">
+          ISPA: {hasil.antibiotikIspa}/{hasil.totalResepIspa} resep pakai antibiotik ({hasil.persenAbIspa.toFixed(1)}%) ·
+          {' '}DIARE: {hasil.antibiotikDiare}/{hasil.totalResepDiare} resep pakai antibiotik ({hasil.persenAbDiare.toFixed(1)}%)
+        </p>
+      )}
+      <button disabled={busy} onClick={handleExport}
+        className="bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white text-xs px-3 py-1.5 rounded flex items-center gap-1.5">
+        {busy ? <Loader2 className="animate-spin" size={12} /> : <Download size={12} />} Export
+      </button>
+    </ReportCard>
   );
 }
 
