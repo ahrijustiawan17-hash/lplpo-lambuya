@@ -599,16 +599,23 @@ function LaporanLainnya({ detail, showToast }) {
   const [pio, setPio] = useState({ rawatInap: '', konseling: '', informasiObat: '' });
   const [indikator, setIndikator] = useState({ jumlahResep: 51, targetMin: 90, targetMax: 100, generated: null, seed: null });
   const [busy, setBusy] = useState('');
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
     (async () => {
-      const p = await api.getExtra(detail.id, 'prekursor');
-      setPrekursor(p || PREKURSOR_ITEMS.map(nama => ({ nama, stokAwal: 0, penerimaan: 0, pemakaian: 0 })));
-      const pioData = await api.getExtra(detail.id, 'pio');
-      if (pioData) setPio(pioData);
-      else setPio({ rawatInap: 20 + Math.floor(Math.random() * 31), konseling: '', informasiObat: '' });
-      const ind = await api.getExtra(detail.id, 'indikator');
-      if (ind) setIndikator(ind);
+      try {
+        const p = await api.getExtra(detail.id, 'prekursor');
+        setPrekursor(p || PREKURSOR_ITEMS.map(nama => ({ nama, stokAwal: 0, penerimaan: 0, pemakaian: 0 })));
+        const pioData = await api.getExtra(detail.id, 'pio');
+        if (pioData) setPio(pioData);
+        else setPio({ rawatInap: 20 + Math.floor(Math.random() * 31), konseling: '', informasiObat: '' });
+        const ind = await api.getExtra(detail.id, 'indikator');
+        if (ind) setIndikator(ind);
+      } catch (e) {
+        // Tetap tampilkan section-nya dengan data default, jangan hilang tanpa jejak.
+        setPrekursor(PREKURSOR_ITEMS.map(nama => ({ nama, stokAwal: 0, penerimaan: 0, pemakaian: 0 })));
+        setLoadError('Gagal memuat data tersimpan (kemungkinan file functions/api/periode/[id]/extra.js belum ter-deploy di server). Laporan tetap bisa di-export, tapi data yang pernah diisi sebelumnya untuk Prekursor/PIO/Indikator mungkin belum termuat.');
+      }
     })();
   }, [detail.id]);
 
@@ -641,6 +648,11 @@ function LaporanLainnya({ detail, showToast }) {
   return (
     <div className="mt-8">
       <h3 className="font-serif text-lg text-stone-800 mb-3">Laporan Bulanan Lainnya</h3>
+      {loadError && (
+        <div className="mb-3 px-4 py-2.5 rounded text-xs bg-amber-50 text-amber-800 border border-amber-200">
+          ⚠️ {loadError}
+        </div>
+      )}
       <div className="grid md:grid-cols-2 gap-4">
 
         <ReportCard title="20 Besar Penggunaan Obat" desc="Otomatis dari kolom Pemakaian bulan ini, diambil 20 tertinggi.">
