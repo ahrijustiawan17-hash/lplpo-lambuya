@@ -49,22 +49,53 @@ export async function export20Besar({ periode, rows, profile }) {
 }
 
 // ---------------- 3. HARTRA (statis, hanya tanggal) ----------------
-export async function exportHartra({ periode }) {
+export async function exportHartra({ periode, profile }) {
   const wb = await loadTemplate('/tpl_hatra.xlsx');
   const tgl = `Lambuya,${tanggalPeriode(periode).toUpperCase()}`;
-  wb.getWorksheet('DATA KUNJ').getCell('H31').value = tgl;
-  wb.getWorksheet('BATRA JENIS METODE').getCell('AB22').value = `Lambuya, ${tanggalPeriode(periode).toUpperCase()}`;
-  wb.getWorksheet('REKAP PKM').getCell('O18').value = `Lambuya,${tanggalPeriode(periode).toUpperCase()}`;
+  const nipK = profile.nipKepalaPuskesmas ? `Nip.${profile.nipKepalaPuskesmas}` : '';
+  const nipP = profile.nipPetugas ? `NIP. ${profile.nipPetugas}` : '';
+
+  const dk = wb.getWorksheet('DATA KUNJ');
+  dk.getCell('H31').value = tgl;
+  dk.getCell('A38').value = profile.namaKepalaPuskesmas || '';
+  dk.getCell('A39').value = nipK;
+  dk.getCell('I38').value = profile.namaPetugas || '';
+  dk.getCell('I39').value = nipP;
+
+  const bjm = wb.getWorksheet('BATRA JENIS METODE');
+  bjm.getCell('AB22').value = `Lambuya, ${tanggalPeriode(periode).toUpperCase()}`;
+  bjm.getCell('A26').value = profile.namaKepalaPuskesmas || '';
+  bjm.getCell('A27').value = nipK;
+  bjm.getCell('AB26').value = profile.namaPetugas || '';
+  bjm.getCell('AB27').value = nipP;
+
+  const fk = wb.getWorksheet('FASILITAS KESTRAD');
+  fk.getCell('A32').value = profile.namaKepalaPuskesmas || '';
+  fk.getCell('A33').value = nipK;
+  fk.getCell('G32').value = profile.namaPetugas || '';
+  fk.getCell('G33').value = nipP;
+
+  const rp = wb.getWorksheet('REKAP PKM');
+  rp.getCell('O18').value = `Lambuya,${tanggalPeriode(periode).toUpperCase()}`;
+  rp.getCell('C21').value = profile.namaKepalaPuskesmas || '';
+  rp.getCell('C22').value = nipK;
+  rp.getCell('O22').value = profile.namaPetugas || '';
+  rp.getCell('O23').value = nipP;
+
   download(await toBlob(wb), `HARTRA_${periode.bulanPelaporan}_${periode.tahunPelaporan}.xlsx`);
 }
 
 // ---------------- 4. NAPZA (statis, hanya bulan/tahun/tanggal) ----------------
-export async function exportNapza({ periode }) {
+export async function exportNapza({ periode, profile }) {
   const wb = await loadTemplate('/tpl_napza.xlsx');
   const ws = wb.worksheets[0];
   ws.getCell('A7').value = `BULAN:  ${periode.bulanPelaporan}`;
   ws.getCell('G7').value = `:  ${periode.tahunPelaporan}`;
   ws.getCell('E29').value = `LAMBUYA, ${tanggalPeriode(periode)}`;
+  ws.getCell('A36').value = profile.namaKepalaPuskesmas || '';
+  ws.getCell('A37').value = profile.nipKepalaPuskesmas ? `NIP. ${profile.nipKepalaPuskesmas}` : '';
+  ws.getCell('E36').value = profile.namaPetugas || '';
+  ws.getCell('E37').value = profile.nipPetugas ? `NIP. ${profile.nipPetugas}` : '';
   download(await toBlob(wb), `NAPZA_${periode.bulanPelaporan}_${periode.tahunPelaporan}.xlsx`);
 }
 
@@ -74,7 +105,7 @@ export const PREKURSOR_ITEMS = [
   'Dextrofen syr', 'Noza Kaplet', 'Lodecon', 'Ifarsyl Syr', 'Nufed', 'Alpara',
 ];
 
-export async function exportPrekursor({ periode, items }) {
+export async function exportPrekursor({ periode, items, profile }) {
   const wb = await loadTemplate('/tpl_prekursor.xlsx');
   const ws = wb.worksheets[0];
   ws.getCell('C10').value = periode.bulanPelaporan;
@@ -88,20 +119,28 @@ export async function exportPrekursor({ periode, items }) {
     ws.getCell(`F${r}`).value = stokAkhir;
   });
   ws.getCell('D31').value = `LAMBUYA, ${tanggalPeriode(periode).toUpperCase()}`;
+  ws.getCell('A36').value = profile.namaKepalaPuskesmas || '';
+  ws.getCell('A37').value = profile.nipKepalaPuskesmas ? `NIP. ${profile.nipKepalaPuskesmas}` : '';
+  ws.getCell('E36').value = profile.namaPetugas || '';
+  ws.getCell('E37').value = profile.nipPetugas ? `NIP. ${profile.nipPetugas}` : '';
   download(await toBlob(wb), `Prekursor_Farmasi_${periode.bulanPelaporan}_${periode.tahunPelaporan}.xlsx`);
 }
 
 // ---------------- 6. Penyalahgunaan NAPZA (statis / NIHIL) ----------------
-export async function exportPenyalahgunaanNapza({ periode }) {
+export async function exportPenyalahgunaanNapza({ periode, profile }) {
   const wb = await loadTemplate('/tpl_penyalahgunaan.xlsx');
   const ws = wb.worksheets[0];
   ws.getCell('C8').value = `: ${periode.bulanPelaporan}`;
   ws.getCell('K25').value = `Lambuya ${tanggalPeriode(periode).toUpperCase()}`;
+  ws.getCell('B30').value = profile.namaKepalaPuskesmas || '';
+  ws.getCell('B31').value = profile.nipKepalaPuskesmas ? `NIP. ${profile.nipKepalaPuskesmas}` : '';
+  ws.getCell('K30').value = profile.namaPetugas || '';
+  ws.getCell('K31').value = profile.nipPetugas ? `NIP. ${profile.nipPetugas}` : '';
   download(await toBlob(wb), `Penyalahgunaan_NAPZA_${periode.bulanPelaporan}_${periode.tahunPelaporan}.xlsx`);
 }
 
 // ---------------- 7. PIO ----------------
-export async function exportPio({ periode, rawatInap, konseling, informasiObat }) {
+export async function exportPio({ periode, rawatInap, konseling, informasiObat, profile }) {
   const wb = await loadTemplate('/tpl_pio.xlsx');
   const ws = wb.worksheets[0];
   const rawatJalan = (periode.kunjungan?.umum || 0) + (periode.kunjungan?.askes || 0) + (periode.kunjungan?.bpjs || 0)
@@ -117,6 +156,10 @@ export async function exportPio({ periode, rawatInap, konseling, informasiObat }
   ws.getCell('F17').value = konseling;
   ws.getCell('G17').value = informasiObat;
   ws.getCell('F23').value = `Lambuya,${tanggalPeriode(periode).toUpperCase()}`;
+  ws.getCell('A31').value = profile.namaKepalaPuskesmas || '';
+  ws.getCell('A32').value = profile.nipKepalaPuskesmas ? `Nip.${profile.nipKepalaPuskesmas}` : '';
+  ws.getCell('F31').value = profile.namaPetugas || '';
+  ws.getCell('F32').value = profile.nipPetugas ? `Nip.${profile.nipPetugas}` : '';
   download(await toBlob(wb), `PIO_${periode.bulanPelaporan}_${periode.tahunPelaporan}.xlsx`);
 }
 
@@ -155,7 +198,7 @@ function mulberry32(seed) {
   };
 }
 
-export async function exportIndikatorPeresepan({ periode, generated }) {
+export async function exportIndikatorPeresepan({ periode, generated, profile }) {
   const wb = await loadTemplate('/tpl_indikator.xlsx');
   const ws = wb.worksheets[0];
   const bulanCap = periode.bulanPelaporan.charAt(0) + periode.bulanPelaporan.slice(1).toLowerCase();
@@ -174,6 +217,10 @@ export async function exportIndikatorPeresepan({ periode, generated }) {
   ws.getCell('C68').value = generated.totalGenerik;
   ws.getCell('D68').value = generated.totalPersen;
   ws.getCell('E70').value = `Lambuya, ${tanggalPeriode(periode)}`;
+  ws.getCell('A74').value = profile.namaKepalaPuskesmas || '';
+  ws.getCell('A75').value = profile.nipKepalaPuskesmas ? `NIP. ${profile.nipKepalaPuskesmas}` : '';
+  ws.getCell('E74').value = profile.namaPetugas || '';
+  ws.getCell('E75').value = profile.nipPetugas ? `NIP. ${profile.nipPetugas}` : '';
   download(await toBlob(wb), `Indikator_Peresepan_${periode.bulanPelaporan}_${periode.tahunPelaporan}.xlsx`);
 }
 
@@ -288,7 +335,7 @@ function fillPasienSheet(ws, patients, startRow) {
   return r;
 }
 
-export async function exportPor({ periode, ispaPatients, diarePatients, tenaga }) {
+export async function exportPor({ periode, ispaPatients, diarePatients, tenaga, profile }) {
   const wb = await loadTemplate('/tpl_por.xlsx');
   const wsDiare = wb.getWorksheet('Diare');
   const wsIspa = wb.getWorksheet('Ispa');
@@ -332,6 +379,10 @@ export async function exportPor({ periode, ispaPatients, diarePatients, tenaga }
   wsLap.getCell('E25').value = Number(rerataDiare.toFixed(2));
   wsLap.getCell('F25').value = Number(rataRata.toFixed(2));
   wsLap.getCell('E27').value = `Lambuya, ${tanggalPeriode(periode).toUpperCase()}`;
+  wsLap.getCell('B33').value = profile.namaKepalaPuskesmas || '';
+  wsLap.getCell('B34').value = profile.nipKepalaPuskesmas ? `NIP. ${profile.nipKepalaPuskesmas}` : '';
+  wsLap.getCell('E33').value = profile.namaPetugas || '';
+  wsLap.getCell('E34').value = profile.nipPetugas ? `NIP. ${profile.nipPetugas}` : '';
 
   download(await toBlob(wb), `POR_${periode.bulanPelaporan}_${periode.tahunPelaporan}.xlsx`);
   return { totalResepIspa, antibiotikIspa, persenAbIspa, totalResepDiare, antibiotikDiare, persenAbDiare, rerataIspa, rerataDiare };

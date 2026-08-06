@@ -590,12 +590,12 @@ function PeriodeDetail({ periodeId, onBack, profile, showToast }) {
         </table>
       </div>
 
-      <LaporanLainnya detail={detail} showToast={showToast} />
+      <LaporanLainnya detail={detail} profile={profile} showToast={showToast} />
     </div>
   );
 }
 
-function LaporanLainnya({ detail, showToast }) {
+function LaporanLainnya({ detail, profile, showToast }) {
   const [prekursor, setPrekursor] = useState(null);
   const [pio, setPio] = useState({ rawatInap: '', konseling: '', informasiObat: '' });
   const [indikator, setIndikator] = useState({ jumlahResep: 51, targetMin: 90, targetMax: 100, generated: null, seed: null });
@@ -657,7 +657,7 @@ function LaporanLainnya({ detail, showToast }) {
       <div className="grid md:grid-cols-2 gap-4">
 
         <ReportCard title="20 Besar Penggunaan Obat" desc="Otomatis dari kolom Pemakaian bulan ini, diambil 20 tertinggi.">
-          <button disabled={busy} onClick={() => run('20besar', () => export20Besar({ periode: detail, rows: detail.rows }))}
+          <button disabled={busy} onClick={() => run('20besar', () => export20Besar({ periode: detail, rows: detail.rows, profile }))}
             className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs px-3 py-1.5 rounded flex items-center gap-1.5">
             {busy === '20besar' ? <Loader2 className="animate-spin" size={12} /> : <Download size={12} />} Export
           </button>
@@ -680,7 +680,7 @@ function LaporanLainnya({ detail, showToast }) {
             </button>
             <button disabled={busy || !indikator.generated} onClick={() => run('indikator-export', async () => {
               const data = indikator.generated ? indikator : await generateAndSaveIndikator();
-              await exportIndikatorPeresepan({ periode: detail, generated: data.generated });
+              await exportIndikatorPeresepan({ periode: detail, generated: data.generated, profile });
             })} className="bg-emerald-700 hover:bg-emerald-800 disabled:opacity-40 text-white text-xs px-3 py-1.5 rounded flex items-center gap-1.5">
               {busy === 'indikator-export' ? <Loader2 className="animate-spin" size={12} /> : <Download size={12} />} Export
             </button>
@@ -688,14 +688,14 @@ function LaporanLainnya({ detail, showToast }) {
         </ReportCard>
 
         <ReportCard title="HARTRA" desc="Data tetap sama tiap bulan, hanya tanggal tanda tangan yang berubah otomatis.">
-          <button disabled={busy} onClick={() => run('hartra', () => exportHartra({ periode: detail }))}
+          <button disabled={busy} onClick={() => run('hartra', () => exportHartra({ periode: detail, profile }))}
             className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs px-3 py-1.5 rounded flex items-center gap-1.5">
             {busy === 'hartra' ? <Loader2 className="animate-spin" size={12} /> : <Download size={12} />} Export
           </button>
         </ReportCard>
 
         <ReportCard title="NAPZA" desc="Data tetap sama tiap bulan, hanya bulan/tahun & tanggal tanda tangan yang berubah.">
-          <button disabled={busy} onClick={() => run('napza', () => exportNapza({ periode: detail }))}
+          <button disabled={busy} onClick={() => run('napza', () => exportNapza({ periode: detail, profile }))}
             className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs px-3 py-1.5 rounded flex items-center gap-1.5">
             {busy === 'napza' ? <Loader2 className="animate-spin" size={12} /> : <Download size={12} />} Export
           </button>
@@ -730,7 +730,7 @@ function LaporanLainnya({ detail, showToast }) {
             <button disabled={busy} onClick={() => run('prekursor-export', async () => {
               await savePrekursor(prekursor);
               const normalized = prekursor.map(it => ({ ...it, stokAwal: num(it.stokAwal), penerimaan: num(it.penerimaan), pemakaian: num(it.pemakaian) }));
-              await exportPrekursor({ periode: detail, items: normalized });
+              await exportPrekursor({ periode: detail, items: normalized, profile });
             })} className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs px-3 py-1.5 rounded flex items-center gap-1.5">
               {busy === 'prekursor-export' ? <Loader2 className="animate-spin" size={12} /> : <Download size={12} />} Export
             </button>
@@ -738,7 +738,7 @@ function LaporanLainnya({ detail, showToast }) {
         </ReportCard>
 
         <ReportCard title="Penyalahgunaan NAPZA" desc="Data NIHIL setiap bulan (belum pernah ada kasus), hanya bulan & tanggal yang berubah.">
-          <button disabled={busy} onClick={() => run('penyalahgunaan', () => exportPenyalahgunaanNapza({ periode: detail }))}
+          <button disabled={busy} onClick={() => run('penyalahgunaan', () => exportPenyalahgunaanNapza({ periode: detail, profile }))}
             className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs px-3 py-1.5 rounded flex items-center gap-1.5">
             {busy === 'penyalahgunaan' ? <Loader2 className="animate-spin" size={12} /> : <Download size={12} />} Export
           </button>
@@ -758,7 +758,7 @@ function LaporanLainnya({ detail, showToast }) {
               className="border border-stone-300 text-stone-600 hover:bg-stone-50 text-xs px-3 py-1.5 rounded">Simpan</button>
             <button disabled={busy} onClick={() => run('pio-export', async () => {
               await savePio(pio);
-              await exportPio({ periode: detail, rawatInap: num(pio.rawatInap), konseling: num(pio.konseling), informasiObat: num(pio.informasiObat) });
+              await exportPio({ periode: detail, rawatInap: num(pio.rawatInap), konseling: num(pio.konseling), informasiObat: num(pio.informasiObat), profile });
             })} className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs px-3 py-1.5 rounded flex items-center gap-1.5">
               {busy === 'pio-export' ? <Loader2 className="animate-spin" size={12} /> : <Download size={12} />} Export
             </button>
@@ -771,14 +771,14 @@ function LaporanLainnya({ detail, showToast }) {
           </button>
         </ReportCard>
 
-        <PorCard detail={detail} showToast={showToast} />
+        <PorCard detail={detail} profile={profile} showToast={showToast} />
 
       </div>
     </div>
   );
 }
 
-function PorCard({ detail, showToast }) {
+function PorCard({ detail, profile, showToast }) {
   const [tenaga, setTenaga] = useState({ apoteker: 1, ttk: 1, farmasi: 0, dokter: 1 });
   const [ispaFile, setIspaFile] = useState(null);
   const [diareFile, setDiareFile] = useState(null);
@@ -797,7 +797,7 @@ function PorCard({ detail, showToast }) {
       const ispaPatients = parseIspaMedisy(ispaBuf);
       const diarePatients = parseDiareMedisy(diareBuf);
       const t = { apoteker: num(tenaga.apoteker), ttk: num(tenaga.ttk), farmasi: num(tenaga.farmasi), dokter: num(tenaga.dokter) };
-      const res = await exportPor({ periode: detail, ispaPatients, diarePatients, tenaga: t });
+      const res = await exportPor({ periode: detail, ispaPatients, diarePatients, tenaga: t, profile });
       setHasil(res);
       showToast('File POR berhasil dibuat.');
     } catch (e) {
