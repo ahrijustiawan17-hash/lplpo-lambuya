@@ -4,6 +4,7 @@ import {
   ClipboardList, Building2, CheckCircle2, AlertCircle, ChevronRight, Save, Search,
 } from 'lucide-react';
 import * as api from './lib/api';
+import JSZip from 'jszip';
 import {
   BULAN, parseMasterFile, parseMedisyStokFile, parseStokAkhirFromLplpo, generateLplpoXlsx, computeRow,
 } from './lib/utils';
@@ -601,6 +602,9 @@ function LaporanLainnya({ detail, profile, showToast }) {
   const [indikator, setIndikator] = useState({ jumlahResep: 51, targetMin: 90, targetMax: 100, generated: null, seed: null });
   const [busy, setBusy] = useState('');
   const [loadError, setLoadError] = useState('');
+  const [porTenaga, setPorTenaga] = useState({ apoteker: 1, ttk: 1, farmasi: 0, dokter: 1 });
+  const [ispaFile, setIspaFile] = useState(null);
+  const [diareFile, setDiareFile] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -644,11 +648,74 @@ function LaporanLainnya({ detail, profile, showToast }) {
     try { await fn(); } catch (e) { showToast('Gagal export: ' + e.message, 'error'); } finally { setBusy(''); }
   };
 
+  const handleDownloadAll = async () => {
+    setBusy('zip-all');
+    try {
+      const zip = new JSZip();
+      const skipped = [];
+
+      // LPLPO utama
+      const templateRes = await fetch('/template_lplpo.xlsx');
+      const templateArrayBuffer = await templateRes.arrayBuffer();
+      const lplpoBlob = await generateLplpoXlsx({ templateArrayBuffer, periode: detail, rows: detail.rows, profile });
+      zip.file(`LPLPO_${detail.bulanPelaporan}_${detail.tahunPelaporan}.xlsx`, lplpoBlob);
+
+      const add = (res) => zip.file(res.filename, res.blob);
+
+      add(await export20Besar({ periode: detail, rows: detail.rows, profile, silent: true }));
+
+      let indData = indikator;
+      if (!indData.generated) indData = await generateAndSaveIndikator();
+      add(await exportIndikatorPeresepan({ periode: detail, generated: indData.generated, profile, silent: true }));
+
+      add(await exportHartra({ periode: detail, profile, silent: true }));
+      add(await exportNapza({ periode: detail, profile, silent: true }));
+
+      if (prekursor) {
+        const normalized = prekursor.map(it => ({ ...it, stokAwal: num(it.stokAwal), penerimaan: num(it.penerimaan), pemakaian: num(it.pemakaian) }));
+        add(await exportPrekursor({ periode: detail, items: normalized, profile, silent: true }));
+      }
+
+      add(await exportPenyalahgunaanNapza({ periode: detail, profile, silent: true }));
+      add(await exportPio({ periode: detail, rawatInap: num(pio.rawatInap), konseling: num(pio.konseling), informasiObat: num(pio.informasiObat), profile, silent: true }));
+      add(await downloadPirt(true));
+
+      if (ispaFile && diareFile) {
+        const ispaBuf = await ispaFile.arrayBuffer();
+        const diareBuf = await diareFile.arrayBuffer();
+        const ispaPatients = parseIspaMedisy(ispaBuf);
+        const diarePatients = parseDiareMedisy(diareBuf);
+        const t = { apoteker: num(porTenaga.apoteker), ttk: num(porTenaga.ttk), farmasi: num(porTenaga.farmasi), dokter: num(porTenaga.dokter) };
+        add(await exportPor({ periode: detail, ispaPatients, diarePatients, tenaga: t, profile, silent: true }));
+      } else {
+        skipped.push('POR (belum upload file ISPA & DIARE dari Medisy)');
+      }
+
+      const content = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(content);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Laporan_${detail.bulanPelaporan}_${detail.tahunPelaporan}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      showToast(skipped.length ? `ZIP dibuat. Dilewati: ${skipped.join(', ')}` : 'ZIP semua laporan berhasil dibuat.');
+    } catch (e) {
+      showToast('Gagal membuat ZIP: ' + e.message, 'error');
+    } finally { setBusy(''); }
+  };
+
   if (!prekursor) return null;
 
   return (
     <div className="mt-8">
-      <h3 className="font-serif text-lg text-stone-800 mb-3">Laporan Bulanan Lainnya</h3>
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <h3 className="font-serif text-lg text-stone-800">Laporan Bulanan Lainnya</h3>
+        <button disabled={busy} onClick={handleDownloadAll}
+          className="bg-stone-800 hover:bg-stone-900 disabled:opacity-50 text-white text-xs px-4 py-2 rounded flex items-center gap-1.5">
+          {busy === 'zip-all' ? <Loader2 className="animate-spin" size={13} /> : <Download size={13} />} Download Semua Laporan (ZIP)
+        </button>
+      </div>
       {loadError && (
         <div className="mb-3 px-4 py-2.5 rounded text-xs bg-amber-50 text-amber-800 border border-amber-200">
           ⚠️ {loadError}
@@ -725,7 +792,7 @@ function LaporanLainnya({ detail, profile, showToast }) {
             </table>
           </div>
           <div className="flex gap-2">
-            <button disabled={busy} onClick={() => run('prekursor-save', () => savePrekursor(prekursor))}
+            <button disabled={busy} onClick={() => run('prekursor-save', async () => { await savePrekursor(prekursor); showToast('Data Prekursor tersimpan.'); })}
               className="border border-stone-300 text-stone-600 hover:bg-stone-50 text-xs px-3 py-1.5 rounded">Simpan</button>
             <button disabled={busy} onClick={() => run('prekursor-export', async () => {
               await savePrekursor(prekursor);
@@ -754,7 +821,7 @@ function LaporanLainnya({ detail, profile, showToast }) {
             <input value={pio.informasiObat} onChange={e => setPio(d => ({ ...d, informasiObat: e.target.value }))} className="w-14 border border-stone-200 rounded px-1.5 py-0.5" />
           </div>
           <div className="flex gap-2">
-            <button disabled={busy} onClick={() => run('pio-save', () => savePio(pio))}
+            <button disabled={busy} onClick={() => run('pio-save', async () => { await savePio(pio); showToast('Data PIO tersimpan.'); })}
               className="border border-stone-300 text-stone-600 hover:bg-stone-50 text-xs px-3 py-1.5 rounded">Simpan</button>
             <button disabled={busy} onClick={() => run('pio-export', async () => {
               await savePio(pio);
@@ -771,17 +838,17 @@ function LaporanLainnya({ detail, profile, showToast }) {
           </button>
         </ReportCard>
 
-        <PorCard detail={detail} profile={profile} showToast={showToast} />
+        <PorCard detail={detail} profile={profile} showToast={showToast}
+          tenaga={porTenaga} setTenaga={setPorTenaga}
+          ispaFile={ispaFile} setIspaFile={setIspaFile}
+          diareFile={diareFile} setDiareFile={setDiareFile} />
 
       </div>
     </div>
   );
 }
 
-function PorCard({ detail, profile, showToast }) {
-  const [tenaga, setTenaga] = useState({ apoteker: 1, ttk: 1, farmasi: 0, dokter: 1 });
-  const [ispaFile, setIspaFile] = useState(null);
-  const [diareFile, setDiareFile] = useState(null);
+function PorCard({ detail, profile, showToast, tenaga, setTenaga, ispaFile, setIspaFile, diareFile, setDiareFile }) {
   const [busy, setBusy] = useState(false);
   const [hasil, setHasil] = useState(null);
 
