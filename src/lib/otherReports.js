@@ -43,7 +43,20 @@ function tanggalPeriode(periode) {
 export async function export20Besar({ periode, rows, profile, silent = false }) {
   const wb = await loadTemplate('/tpl_20besar.xlsx');
   const ws = wb.worksheets[0];
-  const items = rows.filter(r => !r.isHeader).sort((a, b) => (b.pemakaian || 0) - (a.pemakaian || 0)).slice(0, 20);
+
+  // Gabungkan obat dengan nama yang sama (mis. muncul 2x di master obat) -> jumlahkan pemakaiannya
+  const byName = new Map();
+  rows.filter(r => !r.isHeader).forEach(r => {
+    const key = (r.nama || '').trim().toUpperCase();
+    if (!key) return;
+    if (byName.has(key)) {
+      byName.get(key).pemakaian += (r.pemakaian || 0);
+    } else {
+      byName.set(key, { nama: r.nama, pemakaian: r.pemakaian || 0, satuan: r.satuan });
+    }
+  });
+  const items = Array.from(byName.values()).sort((a, b) => b.pemakaian - a.pemakaian).slice(0, 20);
+
   items.forEach((it, i) => {
     const r = 9 + i;
     ws.getCell(`A${r}`).value = i + 1;
@@ -52,6 +65,15 @@ export async function export20Besar({ periode, rows, profile, silent = false }) 
     ws.getCell(`D${r}`).value = it.satuan || '';
   });
   ws.getCell('C30').value = `LAMBUYA, ${tanggalPeriode(periode)}`;
+
+  ws.getCell('B32').value = 'Mengetahui,';
+  ws.getCell('B33').value = 'Kepala Puskesmas Lambuya';
+  ws.getCell('B37').value = profile.namaKepalaPuskesmas || '';
+  ws.getCell('B38').value = profile.nipKepalaPuskesmas ? `NIP. ${profile.nipKepalaPuskesmas}` : '';
+  ws.getCell('D32').value = 'Petugas Pengelola Obat';
+  ws.getCell('D37').value = profile.namaPetugas || '';
+  ws.getCell('D38').value = profile.nipPetugas ? `NIP. ${profile.nipPetugas}` : '';
+
   return finish(await toBlob(wb), `20_Besar_Penggunaan_Obat_${periode.bulanPelaporan}_${periode.tahunPelaporan}.xlsx`, silent);
 }
 
