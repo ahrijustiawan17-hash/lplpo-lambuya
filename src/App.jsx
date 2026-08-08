@@ -627,10 +627,18 @@ function LaporanLainnya({ detail, profile, showToast }) {
   const savePrekursor = async (items) => {
     setPrekursor(items);
     await api.saveExtra(detail.id, 'prekursor', items);
+    const check = await api.getExtra(detail.id, 'prekursor');
+    if (!check || JSON.stringify(check) !== JSON.stringify(items)) {
+      throw new Error('Data terkirim tapi TIDAK ditemukan lagi saat dibaca ulang dari server -- kemungkinan masalah di server (tabel periode_extra), bukan di aplikasi. Hubungi Claude dengan info ini.');
+    }
   };
   const savePio = async (data) => {
     setPio(data);
     await api.saveExtra(detail.id, 'pio', data);
+    const check = await api.getExtra(detail.id, 'pio');
+    if (!check || JSON.stringify(check) !== JSON.stringify(data)) {
+      throw new Error('Data terkirim tapi TIDAK ditemukan lagi saat dibaca ulang dari server -- kemungkinan masalah di server (tabel periode_extra), bukan di aplikasi. Hubungi Claude dengan info ini.');
+    }
   };
   const generateAndSaveIndikator = async () => {
     const seed = Math.floor(Math.random() * 1e9);

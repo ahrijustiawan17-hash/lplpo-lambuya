@@ -254,6 +254,18 @@ export async function exportIndikatorPeresepan({ periode, generated, profile, si
 }
 
 // ---------------- 9. POR (Penggunaan Obat Rasional) ----------------
+// Daftar resmi dari master obat Medisy (kolom Golongan = "Antibiotik") -- lebih akurat dari kata kunci.
+// Dicocokkan berdasar kemiripan nama; kalau tidak cocok sama sekali, fallback ke daftar kata kunci di bawah.
+const ANTIBIOTIK_MASTER_NAMES = [
+  'Amoxicillin 250 mg syr 60ml', 'Amoxicillin 250 mg Tab', 'Amoxicillin drops 100 mg/ml - 10 ml (0-2thn)',
+  'Amoxicillin kaplet 500 mg', 'Amoxicillin sirup kering 125 mg/ 5 ml - 60 ml',
+  'Cefadroxil Drops 150mg/Ml', 'Cefadroxil Kapsul 500 mg', 'Cefadroxil sirup 125 MG / Widoxil',
+  'Cefotaxim Injeksi', 'Ceftriaxon injeksi', 'CHLORAMPHENICOL SALEP MATA (RECO)', 'Ciprofloxacin 500mg Tab',
+  'Cotrimoxazole DOEN I (dewasa) kombinasi : Sulfametoksazol 400 mg + Trimetoprim 80 mg',
+  'Cotrimoxazole Suspensi kombinasi : Sulfametoksazol 200 mg + Trimetoprim 40 mg/ 5 ml - 60 ml',
+  'Dohixat 100 mg (Doxycicline)',
+].map(n => n.toLowerCase());
+
 const ANTIBIOTIK_KEYWORDS = [
   'amoxicillin', 'amoxsilin', 'amoksisilin', 'amoksilin', 'amoxilin',
   'ciprofloxacin', 'siprofloksasin',
@@ -272,7 +284,10 @@ const ANTIBIOTIK_KEYWORDS = [
   'levofloxacin', 'levofloksasin',
 ];
 function isAntibiotik(namaObat) {
-  const n = (namaObat || '').toLowerCase();
+  const n = (namaObat || '').toLowerCase().trim();
+  if (!n) return false;
+  const masterMatch = ANTIBIOTIK_MASTER_NAMES.some(m => n.includes(m) || m.includes(n));
+  if (masterMatch) return true;
   return ANTIBIOTIK_KEYWORDS.some(k => n.includes(k));
 }
 
