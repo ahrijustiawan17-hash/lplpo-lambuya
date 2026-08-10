@@ -305,12 +305,22 @@ export function parseIspaMedisy(arrayBuffer) {
   const ws = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
 
+  // Cari baris header ("Tanggal" di kolom A) secara dinamis, bukan asumsi nomor baris tetap --
+  // posisi ini bisa berbeda-beda antar file export Medisy.
+  let headerIdx = -1;
+  for (let i = 0; i < Math.min(rows.length, 15); i++) {
+    const cell = (rows[i] || [])[0];
+    if (typeof cell === 'string' && cell.trim().toLowerCase() === 'tanggal') { headerIdx = i; break; }
+  }
+  if (headerIdx === -1) throw new Error('Format file ISPA tidak dikenali: kolom "Tanggal" tidak ditemukan di baris manapun.');
+  const dataStart = headerIdx + 2; // lewati baris header + baris nomor legenda (1,2,3,...)
+
   const patients = [];
   let current = null;
-  for (let i = 9; i < rows.length; i++) { // data mulai baris ke-10 (index 9)
+  for (let i = dataStart; i < rows.length; i++) {
     const row = rows[i] || [];
     const [tanggal, no, nama, umur, jmlItem, antibiotik, jmlLembar, letter, namaObat, , , , , , generik] = row;
-    if (tanggal !== null && tanggal !== undefined) {
+    if (tanggal !== null && tanggal !== undefined && tanggal !== '') {
       current = {
         tanggal: excelSerialToDateStr(tanggal), no, nama, umur, jmlItem: Number(jmlItem) || 0,
         antibiotik: (antibiotik || '').toString().toUpperCase().includes('YA') ? 'YA' : 'TIDAK',
@@ -332,8 +342,16 @@ export function parseDiareMedisy(arrayBuffer) {
   const ws = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
 
+  // Cari baris header (kolom C = "Nama") secara dinamis, sama seperti parser ISPA.
+  let headerIdx = -1;
+  for (let i = 0; i < Math.min(rows.length, 15); i++) {
+    const cell = (rows[i] || [])[2];
+    if (typeof cell === 'string' && cell.trim().toLowerCase() === 'nama') { headerIdx = i; break; }
+  }
+  const dataStart = headerIdx === -1 ? 1 : headerIdx + 1;
+
   const patients = [];
-  for (let i = 1; i < rows.length; i++) { // header di baris 1, data mulai baris 2 (index1)
+  for (let i = dataStart; i < rows.length; i++) {
     const row = rows[i] || [];
     const [no, tanggal, nama, nik, jk, tglLahir, umur, alamat, desa, namaObatRaw] = row;
     if (!nama) continue;
