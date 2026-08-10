@@ -333,6 +333,11 @@ export function parseIspaMedisy(arrayBuffer) {
       current.obat.push({ letter: letter || String.fromCharCode(97 + current.obat.length), nama: namaObat, generik: jmlGenerik });
     }
   }
+  // Status "Antibiotik Ya/Tidak" bawaan file Medisy kadang tidak akurat (mis. Amoxicillin tertandai "Tidak").
+  // Hitung ulang dari daftar obat asli memakai klasifikasi antibiotik yang sama dengan laporan DIARE.
+  patients.forEach(p => {
+    p.antibiotik = p.obat.some(o => isAntibiotik(o.nama)) ? 'YA' : 'TIDAK';
+  });
   return patients;
 }
 
