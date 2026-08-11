@@ -3,7 +3,9 @@ import * as XLSX from 'xlsx';
 import { BULAN } from './utils';
 
 async function loadTemplate(path) {
-  const res = await fetch(path);
+  // cache: 'no-store' + query cache-buster supaya browser/CDN tidak pernah menyajikan
+  // versi template lama setelah file ini diperbarui di server.
+  const res = await fetch(`${path}?v=${Date.now()}`, { cache: 'no-store' });
   const buf = await res.arrayBuffer();
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(buf);

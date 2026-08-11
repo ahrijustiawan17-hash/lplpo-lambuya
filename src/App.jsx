@@ -435,7 +435,7 @@ function PeriodeDetail({ periodeId, onBack, profile, showToast }) {
   const handleExport = async () => {
     setBusy(true);
     try {
-      const res = await fetch('/template_lplpo.xlsx');
+      const res = await fetch(`/template_lplpo.xlsx?v=${Date.now()}`, { cache: 'no-store' });
       const templateArrayBuffer = await res.arrayBuffer();
       const blob = await generateLplpoXlsx({ templateArrayBuffer, periode: detail, rows: detail.rows, profile });
       const url = URL.createObjectURL(blob);
@@ -663,7 +663,7 @@ function LaporanLainnya({ detail, profile, showToast }) {
       const skipped = [];
 
       // LPLPO utama
-      const templateRes = await fetch('/template_lplpo.xlsx');
+      const templateRes = await fetch(`/template_lplpo.xlsx?v=${Date.now()}`, { cache: 'no-store' });
       const templateArrayBuffer = await templateRes.arrayBuffer();
       const lplpoBlob = await generateLplpoXlsx({ templateArrayBuffer, periode: detail, rows: detail.rows, profile });
       zip.file(`LPLPO_${detail.bulanPelaporan}_${detail.tahunPelaporan}.xlsx`, lplpoBlob);
