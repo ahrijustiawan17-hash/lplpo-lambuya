@@ -55,3 +55,11 @@ export async function importMedisy(periodeId, rows) {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rows),
   }));
 }
+export async function getExtra(periodeId, key) {
+  return j(await fetch(`${BASE}/periode/${periodeId}/extra?key=${encodeURIComponent(key)}`));
+}
+export async function saveExtra(periodeId, key, data) {
+  return j(await fetch(`${BASE}/periode/${periodeId}/extra`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key, data }),
+  }));
+}

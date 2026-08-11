@@ -617,9 +617,10 @@ function LaporanLainnya({ detail, profile, showToast }) {
         const ind = await api.getExtra(detail.id, 'indikator');
         if (ind) setIndikator(ind);
       } catch (e) {
+        console.error('[LaporanLainnya] gagal memuat data extra:', e);
         // Tetap tampilkan section-nya dengan data default, jangan hilang tanpa jejak.
         setPrekursor(PREKURSOR_ITEMS.map(nama => ({ nama, stokAwal: 0, penerimaan: 0, pemakaian: 0 })));
-        setLoadError('Gagal memuat data tersimpan (kemungkinan file functions/api/periode/[id]/extra.js belum ter-deploy di server). Laporan tetap bisa di-export, tapi data yang pernah diisi sebelumnya untuk Prekursor/PIO/Indikator mungkin belum termuat.');
+        setLoadError(`Gagal memuat data tersimpan: ${e.message}. Laporan tetap bisa di-export, tapi data yang pernah diisi sebelumnya untuk Prekursor/PIO/Indikator mungkin belum termuat.`);
       }
     })();
   }, [detail.id]);
@@ -653,7 +654,7 @@ function LaporanLainnya({ detail, profile, showToast }) {
 
   const run = async (key, fn) => {
     setBusy(key);
-    try { await fn(); } catch (e) { showToast('Gagal export: ' + e.message, 'error'); } finally { setBusy(''); }
+    try { await fn(); } catch (e) { console.error('[LaporanLainnya] gagal:', key, e); showToast('Gagal export: ' + e.message, 'error'); } finally { setBusy(''); }
   };
 
   const handleDownloadAll = async () => {
