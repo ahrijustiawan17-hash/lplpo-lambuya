@@ -380,6 +380,9 @@ export function parseDiareMedisy(arrayBuffer) {
   return patients;
 }
 
+const THIN = { style: 'thin', color: { argb: 'FF000000' } };
+const CELL_BORDER = { top: THIN, bottom: THIN, left: THIN, right: THIN };
+
 function fillPasienSheet(ws, patients, startRow) {
   let r = startRow;
   patients.forEach((p, idx) => {
@@ -400,7 +403,21 @@ function fillPasienSheet(ws, patients, startRow) {
         r += 1;
       });
     }
+    // Gabungkan kolom A-G ke bawah supaya info pasien terlihat menyatu untuk semua baris obatnya
+    const lastRow = r - 1;
+    if (lastRow > firstRow) {
+      ['A', 'B', 'C', 'D', 'E', 'F', 'G'].forEach(col => {
+        ws.mergeCells(`${col}${firstRow}:${col}${lastRow}`);
+      });
+    }
   });
+
+  // Garis tabel penuh (A sampai I) untuk seluruh baris data yang terisi
+  for (let row = startRow; row < r; row++) {
+    for (let col = 1; col <= 9; col++) {
+      ws.getCell(row, col).border = CELL_BORDER;
+    }
+  }
   return r;
 }
 
