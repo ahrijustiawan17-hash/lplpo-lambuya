@@ -65,9 +65,12 @@ export default function App() {
     <div className="min-h-screen bg-stone-50">
       <header className="bg-emerald-900 text-emerald-50 px-6 py-5">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div>
-            <h1 className="font-serif text-2xl tracking-tight">LPLPO {profile?.puskesmas ? `- Puskesmas ${profile.puskesmas}` : ''}</h1>
-            <p className="text-emerald-200 text-sm mt-0.5">Laporan Pemakaian &amp; Lembar Permintaan Obat</p>
+          <div className="flex items-center gap-3">
+            <img src="/logo.png" alt="Logo LPLPO" className="h-14 w-14 object-contain rounded-full bg-white/90 p-0.5 shrink-0" />
+            <div>
+              <h1 className="font-serif text-2xl tracking-tight">LPLPO {profile?.puskesmas ? `- Puskesmas ${profile.puskesmas}` : ''}</h1>
+              <p className="text-emerald-200 text-sm mt-0.5">Laporan Pemakaian &amp; Lembar Permintaan Obat</p>
+            </div>
           </div>
           <button onClick={() => setTab('setup')} className="text-emerald-200 hover:text-white text-xs flex items-center gap-1 border border-emerald-700 rounded px-3 py-1.5">
             <Settings size={13} /> Setup &amp; Profil
