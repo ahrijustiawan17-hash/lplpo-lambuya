@@ -970,8 +970,9 @@ function KunjunganResep({ detail, onSave }) {
 
 // ---------------- Root: cek setup awal & login, lalu arahkan ke portal yang sesuai ----------------
 export default function App() {
-  const [phase, setPhase] = useState('loading'); // loading | bootstrap | login | app
+  const [phase, setPhase] = useState('loading'); // loading | bootstrap | login | app | error
   const [user, setUser] = useState(null);
+  const [initError, setInitError] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -980,8 +981,10 @@ export default function App() {
         if (needsBootstrap) { setPhase('bootstrap'); return; }
         const me = await api.getMe();
         if (me) { setUser(me); setPhase('app'); } else { setPhase('login'); }
-      } catch {
-        setPhase('login');
+      } catch (e) {
+        console.error('[App init] gagal cek status login/setup:', e);
+        setInitError(e.message || String(e));
+        setPhase('error');
       }
     })();
   }, []);
@@ -996,6 +999,24 @@ export default function App() {
     return (
       <div className="min-h-screen flex items-center justify-center text-stone-400">
         <Loader2 className="animate-spin mr-2" size={18} /> Memuat...
+      </div>
+    );
+  }
+  if (phase === 'error') {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="bg-white border border-rose-200 rounded-lg p-6 max-w-md text-center">
+          <AlertCircle className="mx-auto mb-3 text-rose-500" size={28} />
+          <p className="text-sm text-stone-700 mb-2">Gagal menghubungi server saat memuat aplikasi.</p>
+          <p className="text-xs text-stone-400 mb-4">Detail: {initError}</p>
+          <p className="text-xs text-stone-400 mb-4">
+            Kemungkinan database D1 belum ter-binding di environment ini (URL preview biasanya tidak punya binding
+            yang sama dengan production). Coba buka URL utama aplikasi (tanpa angka di depan alamatnya).
+          </p>
+          <button onClick={() => window.location.reload()} className="bg-emerald-700 hover:bg-emerald-800 text-white text-sm px-4 py-2 rounded">
+            Coba Lagi
+          </button>
+        </div>
       </div>
     );
   }
