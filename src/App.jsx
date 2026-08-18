@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Upload, Plus, Trash2, Settings, FileSpreadsheet, Download, Loader2,
   ClipboardList, Building2, CheckCircle2, AlertCircle, ChevronRight, Save, Search,
+  LogOut, Warehouse,
 } from 'lucide-react';
 import * as api from './lib/api';
 import JSZip from 'jszip';
@@ -13,13 +14,14 @@ import {
   generateIndikatorPeresepan, exportIndikatorPeresepan, downloadPirt, PREKURSOR_ITEMS,
   parseIspaMedisy, parseDiareMedisy, exportPor,
 } from './lib/otherReports';
+import { BootstrapPage, LoginPage, StaffPortal, AdminGudangPanel } from './GudangApp';
 
 function num(v) {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
 }
 
-export default function App() {
+function LplpoAdminApp({ user, onLogout }) {
   const [tab, setTab] = useState('periode');
   const [master, setMaster] = useState([]);
   const [profile, setProfile] = useState(null);
@@ -72,13 +74,19 @@ export default function App() {
               <p className="text-emerald-200 text-sm mt-0.5">Laporan Pemakaian &amp; Lembar Permintaan Obat</p>
             </div>
           </div>
-          <button onClick={() => setTab('setup')} className="text-emerald-200 hover:text-white text-xs flex items-center gap-1 border border-emerald-700 rounded px-3 py-1.5">
-            <Settings size={13} /> Setup &amp; Profil
-          </button>
+          <div className="flex gap-2">
+            <button onClick={onLogout} className="text-emerald-200 hover:text-white text-xs flex items-center gap-1 border border-emerald-700 rounded px-3 py-1.5">
+              <LogOut size={13} /> {user.nama}
+            </button>
+            <button onClick={() => setTab('setup')} className="text-emerald-200 hover:text-white text-xs flex items-center gap-1 border border-emerald-700 rounded px-3 py-1.5">
+              <Settings size={13} /> Setup &amp; Profil
+            </button>
+          </div>
         </div>
         <nav className="max-w-6xl mx-auto flex gap-1 mt-5">
           {[
             { key: 'periode', label: 'Data Periode Bulanan', Icon: ClipboardList },
+            { key: 'gudang', label: 'Permintaan Obat Gudang', Icon: Warehouse },
             { key: 'setup', label: 'Setup & Profil', Icon: Building2 },
           ].map(({ key, label, Icon }) => (
             <button key={key} onClick={() => setTab(key)}
@@ -154,6 +162,9 @@ export default function App() {
               showToast={showToast}
             />
           )
+        )}
+        {tab === 'gudang' && (
+          <AdminGudangPanel showToast={showToast} />
         )}
       </main>
     </div>
@@ -955,4 +966,47 @@ function KunjunganResep({ detail, onSave }) {
       </div>
     </div>
   );
+}
+
+// ---------------- Root: cek setup awal & login, lalu arahkan ke portal yang sesuai ----------------
+export default function App() {
+  const [phase, setPhase] = useState('loading'); // loading | bootstrap | login | app
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { needsBootstrap } = await api.checkBootstrap();
+        if (needsBootstrap) { setPhase('bootstrap'); return; }
+        const me = await api.getMe();
+        if (me) { setUser(me); setPhase('app'); } else { setPhase('login'); }
+      } catch {
+        setPhase('login');
+      }
+    })();
+  }, []);
+
+  const handleLogout = async () => {
+    try { await api.logout(); } catch {}
+    setUser(null);
+    setPhase('login');
+  };
+
+  if (phase === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-stone-400">
+        <Loader2 className="animate-spin mr-2" size={18} /> Memuat...
+      </div>
+    );
+  }
+  if (phase === 'bootstrap') {
+    return <BootstrapPage onDone={() => setPhase('login')} />;
+  }
+  if (phase === 'login') {
+    return <LoginPage onLoggedIn={(u) => { setUser(u); setPhase('app'); }} />;
+  }
+  if (user.role === 'staff') {
+    return <StaffPortal user={user} onLogout={handleLogout} />;
+  }
+  return <LplpoAdminApp user={user} onLogout={handleLogout} />;
 }

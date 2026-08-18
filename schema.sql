@@ -58,6 +58,63 @@ CREATE TABLE IF NOT EXISTS settings (
   value TEXT
 );
 
+-- ================= MODUL LOGIN & PERMINTAAN OBAT GUDANG =================
+
+-- Akun pengguna. role: 'admin' (apoteker, akses penuh termasuk LPLPO) atau 'staff' (hanya modul Permintaan Obat)
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  username TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  salt TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'staff',
+  nama TEXT NOT NULL,
+  unit TEXT,
+  created_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+  token TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at TEXT NOT NULL
+);
+
+-- Snapshot stok gudang, ditimpa ulang tiap kali admin upload data Medisy (mis. tiap Senin)
+CREATE TABLE IF NOT EXISTS gudang_stok (
+  id TEXT PRIMARY KEY,
+  kode_obat TEXT,
+  nama TEXT NOT NULL,
+  satuan TEXT,
+  jumlah REAL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS gudang_stok_meta (
+  key TEXT PRIMARY KEY,
+  value TEXT
+);
+
+-- Permintaan obat dari staf ke gudang/apoteker
+CREATE TABLE IF NOT EXISTS permintaan_obat (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id),
+  status TEXT NOT NULL DEFAULT 'pending', -- pending | diproses | selesai | ditolak
+  catatan TEXT,
+  catatan_admin TEXT,
+  created_at TEXT,
+  processed_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS permintaan_obat_item (
+  id TEXT PRIMARY KEY,
+  permintaan_id TEXT NOT NULL REFERENCES permintaan_obat(id) ON DELETE CASCADE,
+  kode_obat TEXT,
+  nama TEXT NOT NULL,
+  satuan TEXT,
+  jumlah REAL NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_permintaan_item_permintaan ON permintaan_obat_item(permintaan_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+
 -- Data tambahan per periode untuk laporan bulanan lainnya (Prekursor, Indikator Peresepan, PIO, dst)
 -- report_key contoh: 'prekursor', 'indikator_peresepan', 'pio'
 CREATE TABLE IF NOT EXISTS periode_extra (
