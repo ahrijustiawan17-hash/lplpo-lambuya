@@ -63,3 +63,61 @@ export async function saveExtra(periodeId, key, data) {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key, data }),
   }));
 }
+
+// ---- Auth ----
+export async function checkBootstrap() {
+  return j(await fetch(`${BASE}/auth/bootstrap`));
+}
+export async function bootstrapAdmin(data) {
+  return j(await fetch(`${BASE}/auth/bootstrap`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+  }));
+}
+export async function login(username, password) {
+  return j(await fetch(`${BASE}/auth/login`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }),
+  }));
+}
+export async function logout() {
+  return j(await fetch(`${BASE}/auth/logout`, { method: 'POST' }));
+}
+export async function getMe() {
+  const res = await fetch(`${BASE}/auth/me`);
+  if (res.status === 401) return null;
+  const data = await j(res);
+  return data.user;
+}
+export async function getUsers() {
+  return j(await fetch(`${BASE}/auth/users`));
+}
+export async function createUser(data) {
+  return j(await fetch(`${BASE}/auth/users`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+  }));
+}
+export async function deleteUser(id) {
+  return j(await fetch(`${BASE}/auth/users/${id}`, { method: 'DELETE' }));
+}
+
+// ---- Gudang: stok & permintaan obat ----
+export async function getGudangStok() {
+  return j(await fetch(`${BASE}/gudang/stok`));
+}
+export async function importGudangStok(rows) {
+  return j(await fetch(`${BASE}/gudang/stok`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rows),
+  }));
+}
+export async function getPermintaan() {
+  return j(await fetch(`${BASE}/gudang/permintaan`));
+}
+export async function createPermintaan(payload) {
+  return j(await fetch(`${BASE}/gudang/permintaan`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  }));
+}
+export async function updatePermintaanStatus(id, status, catatanAdmin) {
+  return j(await fetch(`${BASE}/gudang/permintaan/${id}`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status, catatanAdmin }),
+  }));
+}

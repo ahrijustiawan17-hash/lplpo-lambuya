@@ -977,6 +977,11 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
+        const required = ['checkBootstrap', 'getMe', 'login', 'logout', 'bootstrapAdmin'];
+        const missing = required.filter(fn => typeof api[fn] !== 'function');
+        if (missing.length > 0) {
+          throw new Error(`src/lib/api.js di server belum lengkap -- fungsi berikut tidak ditemukan: ${missing.join(', ')}. Timpa ulang file src/lib/api.js dengan versi terbaru.`);
+        }
         const { needsBootstrap } = await api.checkBootstrap();
         if (needsBootstrap) { setPhase('bootstrap'); return; }
         const me = await api.getMe();
